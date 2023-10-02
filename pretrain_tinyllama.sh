@@ -1,4 +1,3 @@
-export WANDB_API_KEY=c5e9b1a784400b81d8ce5537a23ee47f6d034783
 export WANDB_PROJECT=TinyLLama
 export WANDB_ENTITY=SivilTaram
 
