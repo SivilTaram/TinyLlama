@@ -49,8 +49,9 @@ RUN wget -qO /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-${
 
 # RUN pip install deepspeed==0.10.2
 RUN pip install --index-url https://download.pytorch.org/whl/nightly/cu118 --pre 'torch>=2.1.0dev'
-RUN pip uninstall ninja -y && pip install ninja -U
-RUN pip install -v -U git+https://github.com/facebookresearch/xformers.git@main#egg=xformers
+RUN pip uninstall ninja -y
+RUN pip install ninja
+RUN pip install -v git+https://github.com/facebookresearch/xformers.git@main#egg=xformers
 RUN git clone https://github.com/Dao-AILab/flash-attention
 RUN cd flash-attention && \
     python setup.py install && \

@@ -50,7 +50,22 @@ Use the provided scripts to tokenize the datasets and divide them into chunks.
 ```bash
 python scripts/prepare_starcoder.py --source_path /path/to/starcoderdata/ --tokenizer_path data/llama --destination_path data/slim_star_combined --split train --percentage 1.0
 python scripts/prepare_slimpajama.py --source_path /path/to/SlimPajama --tokenizer_path data/llama  --destination_path data/slim_star_combined --split validation --percentage 1.0
-python scripts/prepare_slimpajama.py --source_path /path/to/SlimPajama --tokenizer_path data/llama  --destination_path data/slim_star_combined --split train --percentage 1.0
+
+python scripts/prepare_ind_file.py --source_path /data/hf_dataset/indo_culurax --tokenizer_path data/llama --destination_path /data/tinyllama_dataset --split train --percentage 1.0
+python scripts/prepare_ind_file.py --source_path /data/hf_dataset/indo_culurax --tokenizer_path data/llama --destination_path /data/tinyllama_dataset --split valid --percentage 1.0
+
+python scripts/prepare_en_file.py --source_path /data/hf_dataset/en_merge_sample --tokenizer_path data/llama --destination_path /data/tinyllama_dataset --split train --percentage 1.0
+python scripts/prepare_en_file.py --source_path /data/hf_dataset/en_merge_sample --tokenizer_path data/llama --destination_path /data/tinyllama_dataset --split valid --percentage 1.0
+
+python scripts/prepare_ind_file.py --source_path /data/hf_dataset/indo_culurax --tokenizer_path data/madlad_400 --destination_path /data/tinyllama_madlad_dataset --split train --percentage 1.0
+python scripts/prepare_ind_file.py --source_path /data/hf_dataset/indo_culurax --tokenizer_path data/madlad_400 --destination_path /data/tinyllama_madlad_dataset --split valid --percentage 1.0
+
+python scripts/prepare_en_file.py --source_path /data/hf_dataset/en_merge_sample --tokenizer_path data/madlad_400 --destination_path /data/tinyllama_madlad_dataset --split train --percentage 1.0
+python scripts/prepare_en_file.py --source_path /data/hf_dataset/en_merge_sample --tokenizer_path data/madlad_400 --destination_path /data/tinyllama_madlad_dataset --split valid --percentage 1.0
+
+
+python scripts/prepare_ind_en.py --source_path /data/hf_dataset/ --tokenizer_path data/madlad_400 --destination_path /data/tinyllama_madlad_dataset
+
 ```
 The processed data will take 1.8T storage.
 
