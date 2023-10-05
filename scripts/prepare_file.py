@@ -27,6 +27,7 @@ def prepare_full(
     tokenizer_path: Path,
     destination_path: Path,
     chunk_size: int,
+    shortname: str = "ind",
     split: str="train",
     filenames_subset: List[str] = None,
     process_id: int = 0
@@ -46,7 +47,7 @@ def prepare_full(
 
     builder = packed_dataset.PackedDatasetBuilder(
         outdir=destination_path,
-        prefix=f"{split}_ind_{process_id}",  # Use process_id to differentiate builders
+        prefix=f"{split}_{shortname}_{process_id}",  # Use process_id to differentiate builders
         chunk_size=chunk_size,
         sep_token=tokenizer.bos_id,
         dtype="auto",
@@ -68,6 +69,7 @@ def prepare(
     source_path: Path = Path("data/RedPajama-Data-1T-Sample"),
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     destination_path: Path = Path("data/red_pajama_sample"),
+    short_name: str = "ind",
     chunk_size: int = 2049 * 1024,
     split: str="train",
     percentage: float = 1.0,
@@ -84,7 +86,7 @@ def prepare(
     start_time = time.time()
 
     for i, subset in enumerate(chunked_filenames):
-        p = Process(target=prepare_full, args=(source_path, tokenizer_path, destination_path, chunk_size, split, list(subset), i))
+        p = Process(target=prepare_full, args=(source_path, tokenizer_path, destination_path, chunk_size, short_name, split, list(subset), i))
         processes.append(p)
         p.start()
 

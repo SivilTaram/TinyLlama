@@ -24,5 +24,5 @@ def split_file_to_chunks(file_path, target_folder):
 if __name__ == "__main__":
     # split_file_to_chunks("/data/hf_dataset/en_merge_sample.jsonl",
     #                      "/data/hf_dataset/en_merge_sample")
-    split_file_to_chunks("/data/hf_dataset/indo_culurax.jsonl",
-                        "/data/hf_dataset/indo_culurax")
+    split_file_to_chunks("/data/hf_dataset/mixup_en_ind.jsonl",
+                        "/data/hf_dataset/mixup")
