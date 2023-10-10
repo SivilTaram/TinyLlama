@@ -23,15 +23,15 @@ from pytorch_lightning.loggers import WandbLogger
 from lit_gpt import FusedCrossEntropyLoss
 import random
 
-model_name = "tiny_LLaMA_madlad_1b"
-name = "tinyllama_madlad_1b"
+model_name = "tiny_LLaMA_1b"
+name = "tinyllama_1b_cc100"
 out_dir = Path("/data/checkpoints") / name
 
 # Hyperparameters
 num_of_devices = 8
 global_batch_size = 512
 learning_rate = 4e-4
-micro_batch_size = 8
+micro_batch_size = 16
 max_step = 100000
 warmup_steps = 2000
 log_step_interval = 10
@@ -62,13 +62,13 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
 train_data_config = [
-    ("train_en", 0.5),
-    ("train_ind", 0.5),
+    ("train_cc100_en", 1.0),
+    ("train_cc100_ind", 1.0),
 ]
 
 val_data_config = [
-    ("valid_en", 1.0),
-    ("valid_ind", 1.0)
+    # ("valid_en", 1.0),
+    ("valid_cc100_ind", 1.0)
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
