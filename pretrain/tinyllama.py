@@ -24,7 +24,7 @@ from lit_gpt import FusedCrossEntropyLoss
 import random
 
 model_name = "tiny_LLaMA_1b"
-name = "tinyllama_1b_cc100"
+name = "tinyllama_1b_cc100_merge_sample"
 out_dir = Path("/data/checkpoints") / name
 
 # Hyperparameters
@@ -62,13 +62,13 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
 train_data_config = [
-    ("train_cc100_en", 1.0),
-    ("train_cc100_ind", 1.0),
+    ("train_cleaned_cc100_ind", 1.0),
+    # ("train_cc100_ind", 1.0),
 ]
 
 val_data_config = [
     # ("valid_en", 1.0),
-    ("valid_cc100_ind", 1.0)
+    ("valid_cleaned_cc100_ind", 1.0)
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -305,8 +305,8 @@ def create_dataloader(
     data_config = train_data_config if split == "train" else val_data_config
     for prefix, _ in data_config:
         filenames = glob.glob(str(data_dir / f"{prefix}*"))
-        random.seed(seed)
-        random.shuffle(filenames)
+        # random.seed(seed)
+        # random.shuffle(filenames)
 
         dataset = PackedDataset(
             filenames,
