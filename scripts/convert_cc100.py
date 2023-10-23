@@ -1,7 +1,7 @@
 import json
 
-read_file = "/data/hf_dataset/cc100-en.txt"
-write_file = "/data/hf_dataset/cc100-en.jsonl"
+read_file = "/data/hf_dataset/cc100-merge.txt"
+write_file = "/data/hf_dataset/cc100-merge.jsonl"
 
 with open(read_file, "r") as f:
     idx = 0
