@@ -24,7 +24,7 @@ from lit_gpt import FusedCrossEntropyLoss
 import random
 
 model_name = "tiny_LLaMA_1b"
-name = "tinyllama_1b_cc100_merge_sample"
+name = "tinyllama_1b_cc100_clean_ind_fix_dataloader"
 out_dir = Path("/data/checkpoints") / name
 
 # Hyperparameters
@@ -74,7 +74,7 @@ val_data_config = [
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 logger = step_csv_logger("out", name, flush_logs_every_n_steps=log_iter_interval)
 wandb_logger = WandbLogger()
-
+wandb_logger.log_hyperparams(hparams)
 
 def setup(
     devices: int = 8,
