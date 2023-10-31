@@ -23,29 +23,29 @@ from pytorch_lightning.loggers import WandbLogger
 from lit_gpt import FusedCrossEntropyLoss
 import random
 
+
 model_name = "tiny_LLaMA_1b"
-name = "tinyllama_1b_cc100_clean_ind_fix_dataloader"
-out_dir = Path("/data/checkpoints") / name
-
+name = "tiny_LLaMA_1b"
+out_dir = Path("out") / name
+checkpoint_path = "out/TinyLlama-1.1B-intermediate-step-240k-503b/lit_model.pth"
 # Hyperparameters
-num_of_devices = 8
-global_batch_size = 512
-learning_rate = 4e-4
-micro_batch_size = 16
-max_step = 100000
-warmup_steps = 2000
-log_step_interval = 10
-eval_iters = 100
-save_step_interval = 5000
-eval_step_interval = 5000
-
+num_of_devices = 6
+global_batch_size = 360
+learning_rate = 2e-4
+min_lr = 2e-5
+micro_batch_size = 6
+max_step = 10000
+warmup_steps = 0 
+log_step_interval = 1
+eval_iters = 1000000
+save_step_interval = 2000
+eval_step_interval = 2000
 
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
 decay_lr = True
-min_lr = 4e-5
 
 batch_size = global_batch_size // num_of_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -62,19 +62,17 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
 train_data_config = [
-    ("train_cleaned_cc100_ind", 1.0),
-    # ("train_cc100_ind", 1.0),
+    ("train_starcoder", 1),
 ]
 
 val_data_config = [
-    # ("valid_en", 1.0),
-    ("valid_cleaned_cc100_ind", 1.0)
+    ("validation", 1.0),
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 logger = step_csv_logger("out", name, flush_logs_every_n_steps=log_iter_interval)
 wandb_logger = WandbLogger()
-wandb_logger.log_hyperparams(hparams)
+
 
 def setup(
     devices: int = 8,
@@ -104,8 +102,8 @@ def setup(
 
     fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
     fabric.print(hparams)
-    #fabric.launch(main, train_data_dir, val_data_dir, resume)
-    main(fabric, train_data_dir, val_data_dir, resume)
+    fabric.launch(main, train_data_dir, val_data_dir, resume)
+    # main(fabric, train_data_dir, val_data_dir, resume)
 
 
 def main(fabric, train_data_dir, val_data_dir, resume):
@@ -131,20 +129,25 @@ def main(fabric, train_data_dir, val_data_dir, resume):
 
     fabric.seed_everything(3407)  # same seed for every process to init model (FSDP)
 
-    fabric.print(f"Loading model with {config.__dict__}")
+    fabric.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}")
     t0 = time.perf_counter()
     with fabric.init_module(empty_init=True):
         model = GPT(config)
-        model.apply(partial(model._init_weights ,n_layer=config.n_layer))
+    
  
-
+    model = fabric.setup(model)
+    fabric.load_raw(checkpoint_path, model, strict=True)
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
     fabric.print(f"Total parameters {num_parameters(model):,}")
 
-    model = fabric.setup(model)
+    
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
     )
+    # import bitsandbytes as bnb
+    # optimizer = bnb.optim.AdamW8bit(
+    #     model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2)
+    # )
     # optimizer = FusedAdam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2),adam_w_mode=True)
     optimizer = fabric.setup_optimizers(optimizer)
 
@@ -216,9 +219,9 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
             param_group["lr"] = lr
 
         iter_t0 = time.perf_counter()
-
         input_ids = train_data[:, 0 : model.config.block_size].contiguous()
         targets = train_data[:, 1 : model.config.block_size + 1].contiguous()
+
         is_accumulating = (state["iter_num"] + 1) % gradient_accumulation_steps != 0
         with fabric.no_backward_sync(model, enabled=is_accumulating):
             logits = model(input_ids)

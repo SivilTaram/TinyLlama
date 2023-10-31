@@ -52,7 +52,7 @@ class Tokenizer:
         string: str,
         device: Optional[torch.device] = None,
         bos: bool = False,
-        eos: bool = False,
+        eos: bool = True,
         max_length: int = -1,
     ) -> torch.Tensor:
         if self.backend == "huggingface":
