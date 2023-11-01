@@ -11,6 +11,7 @@ import torch.nn as nn
 from lightning_utilities.core.imports import RequirementCache
 from typing_extensions import Self
 from lit_gpt.config import Config
+from xformers.ops import SwiGLU
 
 RoPECache = Tuple[torch.Tensor, torch.Tensor]
 KVCache = Tuple[torch.Tensor, torch.Tensor]
@@ -36,7 +37,6 @@ class GPT(nn.Module):
         self.kv_caches: List[KVCache] = []
 
     def _init_weights(self, module: nn.Module, n_layer) -> None:
-        from xformers.ops import SwiGLU
         """Meant to be used with `gpt.apply(gpt._init_weights)`."""
         # GPT-NeoX  https://arxiv.org/pdf/2204.06745.pdf
         # print module name

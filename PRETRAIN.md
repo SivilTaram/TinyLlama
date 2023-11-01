@@ -4,7 +4,7 @@
 We expect you have CUDA 11.8 installed.
 #### Install Pytorch Nightly.
 ```bash
-pip install --index-url https://download.pytorch.org/whl/nightly/cu118 --pre 'torch>=2.1.0dev'
+pip install --index-url https://download.pytorch.org/whl/nightly/cu118 --pre 'torch>=2.2.0dev'
 ```
 #### Build XFormers from Source
 Note: as of 2023/09/02, xformers does not provide pre-built binaries for torch 2.1. You have to build it from source.
@@ -19,6 +19,8 @@ pip install -v -U git+https://github.com/facebookresearch/xformers.git@main#egg=
 git clone https://github.com/Dao-AILab/flash-attention
 cd flash-attention
 python setup.py install
+
+pip install flash-attn --no-build-isolation
 cd csrc/rotary && pip install .
 cd ../layer_norm && pip install .
 cd ../xentropy && pip install .

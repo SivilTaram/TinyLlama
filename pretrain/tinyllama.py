@@ -24,11 +24,9 @@ from lit_gpt import FusedCrossEntropyLoss
 import random
 
 model_name = "tiny_LLaMA_1b"
-name = "tinyllama_1b_cc100_clean_ind_fix_dataloader"
-out_dir = Path("/data/checkpoints") / name
 
 # Hyperparameters
-num_of_devices = 8
+num_of_devices = 1
 global_batch_size = 512
 learning_rate = 4e-4
 micro_batch_size = 16
@@ -53,8 +51,6 @@ assert gradient_accumulation_steps > 0
 warmup_iters = warmup_steps * gradient_accumulation_steps
 
 
-
-
 max_iters = max_step * gradient_accumulation_steps
 lr_decay_iters = max_iters
 log_iter_interval = log_step_interval * gradient_accumulation_steps
@@ -72,17 +68,21 @@ val_data_config = [
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
-logger = step_csv_logger("out", name, flush_logs_every_n_steps=log_iter_interval)
+# get a random name
+random_name = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=10))
+logger = step_csv_logger("out", random_name, flush_logs_every_n_steps=log_iter_interval)
+# log hyper-parameters into wandb
 wandb_logger = WandbLogger()
 wandb_logger.log_hyperparams(hparams)
 
 def setup(
-    devices: int = 8,
+    devices: int = num_of_devices,
     train_data_dir: Path = Path("data/redpajama_sample"),
     val_data_dir: Optional[Path] = None,
     precision: Optional[str] = None,
     tpu: bool = False,
     resume: Union[bool, Path] = False,
+    out_name: str = "default_model"
 ) -> None:
     precision = precision or get_default_supported_precision(training=True, tpu=tpu)
 
@@ -105,13 +105,14 @@ def setup(
     fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
     fabric.print(hparams)
     #fabric.launch(main, train_data_dir, val_data_dir, resume)
-    main(fabric, train_data_dir, val_data_dir, resume)
+    main(fabric, train_data_dir, val_data_dir, resume, out_name)
 
 
-def main(fabric, train_data_dir, val_data_dir, resume):
+def main(fabric, train_data_dir, val_data_dir, resume, out_name):
     monitor = Monitor(fabric, window_size=2, time_unit="seconds", log_iter_interval=log_iter_interval)
 
     if fabric.global_rank == 0:
+        out_dir = Path("checkpoints") / out_name
         out_dir.mkdir(parents=True, exist_ok=True)
 
     config = Config.from_name(model_name)
@@ -152,7 +153,8 @@ def main(fabric, train_data_dir, val_data_dir, resume):
 
     if resume is True:
         resume = sorted(out_dir.glob("*.pth"))[-1]
-    if resume :
+        
+    if resume:
         fabric.print(f"Resuming training from {resume}")
         fabric.load(resume, state)
 

@@ -24,5 +24,5 @@ def split_file_to_chunks(file_path, target_folder):
 if __name__ == "__main__":
     # split_file_to_chunks("/data/hf_dataset/en_merge_sample.jsonl",
     #                      "/data/hf_dataset/en_merge_sample")
-    split_file_to_chunks("/data/hf_dataset/cleaned_cc100_ind.jsonl",
-                        "/data/hf_dataset/cleaned-cc100-ind")
+    split_file_to_chunks("../../slimpajama_en_60b.jsonl",
+                        "/home/aiops/liuqian/TinyLlama/hf_dataset/slimpajama_en_60b")
