@@ -26,12 +26,12 @@ import random
 model_name = "tiny_LLaMA_1b"
 
 # Hyperparameters
-num_of_devices = 1
+num_of_devices = 8
 global_batch_size = 512
-learning_rate = 4e-4
+learning_rate = 6e-5
 micro_batch_size = 16
 max_step = 100000
-warmup_steps = 2000
+warmup_steps = 0
 log_step_interval = 10
 eval_iters = 100
 save_step_interval = 5000
@@ -43,7 +43,7 @@ beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
 decay_lr = True
-min_lr = 4e-5
+min_lr = 1e-5
 
 batch_size = global_batch_size // num_of_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -58,13 +58,13 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
 train_data_config = [
-    ("train_cleaned_cc100_ind", 1.0),
-    # ("train_cc100_ind", 1.0),
+    ("train_culturax_ind_20b", 1.0),
+    ("train_redpajama_20b", 1.0)
 ]
 
 val_data_config = [
-    # ("valid_en", 1.0),
-    ("valid_cleaned_cc100_ind", 1.0)
+    ("valid_culturax_ind_20b", 1.0),
+    ("valid_redpajama_20b", 1.0)
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -82,7 +82,8 @@ def setup(
     precision: Optional[str] = None,
     tpu: bool = False,
     resume: Union[bool, Path] = False,
-    out_name: str = "default_model"
+    out_name: str = "default_model",
+    load_from: Optional[Path] = None,
 ) -> None:
     precision = precision or get_default_supported_precision(training=True, tpu=tpu)
 
@@ -105,10 +106,10 @@ def setup(
     fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
     fabric.print(hparams)
     #fabric.launch(main, train_data_dir, val_data_dir, resume)
-    main(fabric, train_data_dir, val_data_dir, resume, out_name)
+    main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from)
 
 
-def main(fabric, train_data_dir, val_data_dir, resume, out_name):
+def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
     monitor = Monitor(fabric, window_size=2, time_unit="seconds", log_iter_interval=log_iter_interval)
 
     if fabric.global_rank == 0:
@@ -137,12 +138,19 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name):
     with fabric.init_module(empty_init=True):
         model = GPT(config)
         model.apply(partial(model._init_weights ,n_layer=config.n_layer))
- 
+        # load pretrained model
+        if load_from is not None:
+            # use torch.load to load the model
+            print("loading model from {}".format(load_from))
+            state_dict = torch.load(load_from, map_location=fabric.device)
+            model.load_state_dict(state_dict, strict=True, assign=True)
+
 
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
     fabric.print(f"Total parameters {num_parameters(model):,}")
 
     model = fabric.setup(model)
+    
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
     )

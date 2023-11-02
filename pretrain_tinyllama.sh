@@ -8,9 +8,9 @@ lightning run model \
     --main-address=127.0.01 \
     --accelerator=cuda \
     --num-nodes=1 \
-    --devices=1 \
-    pretrain/tinyllama.py --devices 1 \
+    --devices=8 \
+    pretrain/tinyllama.py --devices 8 \
     --train_data_dir ../lit_dataset \
     --val_data_dir ../lit_dataset \
     --out_name $MODEL_NAME \
-    --resume ../TinyLlama-1T-Model/lit_model.pth
+    --load_from ../TinyLlama-1T-Model/lit_model.pth
