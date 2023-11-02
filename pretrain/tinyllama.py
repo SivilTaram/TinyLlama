@@ -260,6 +260,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
             t1 - total_t0,
             # this assumes that device FLOPs are the same and that all devices have the same batch size
             fabric.world_size,
+            state["step_count"],
             flops_per_batch=estimated_flops,
             lengths=total_lengths,
             train_loss = loss.item()
