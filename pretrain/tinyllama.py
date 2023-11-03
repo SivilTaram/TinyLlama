@@ -28,10 +28,10 @@ model_name = "tiny_LLaMA_1b"
 # Hyperparameters
 num_of_devices = 8
 global_batch_size = 512
-learning_rate = 6e-5
+learning_rate = 3e-5
 micro_batch_size = 16
 max_step = 100000
-warmup_steps = 0
+warmup_steps = 2000
 log_step_interval = 10
 eval_iters = 100
 save_step_interval = 5000
@@ -43,7 +43,7 @@ beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
 decay_lr = True
-min_lr = 1e-5
+min_lr = 1e-6
 
 batch_size = global_batch_size // num_of_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -74,6 +74,8 @@ logger = step_csv_logger("out", random_name, flush_logs_every_n_steps=log_iter_i
 # log hyper-parameters into wandb
 wandb_logger = WandbLogger()
 wandb_logger.log_hyperparams(hparams)
+# also log the train & val data config
+wandb_logger.log_hyperparams({"train_data_config": train_data_config, "val_data_config": val_data_config})
 
 def setup(
     devices: int = num_of_devices,
@@ -111,9 +113,9 @@ def setup(
 
 def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
     monitor = Monitor(fabric, window_size=2, time_unit="seconds", log_iter_interval=log_iter_interval)
+    out_dir = Path("checkpoints") / out_name
 
     if fabric.global_rank == 0:
-        out_dir = Path("checkpoints") / out_name
         out_dir.mkdir(parents=True, exist_ok=True)
 
     config = Config.from_name(model_name)
@@ -167,13 +169,13 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
         fabric.load(resume, state)
 
     train_time = time.perf_counter()
-    train(fabric, state, train_dataloader, val_dataloader, monitor, resume)
+    train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_dir)
     fabric.print(f"Training time: {(time.perf_counter()-train_time):.2f}s")
     if fabric.device.type == "cuda":
         fabric.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB")
 
 
-def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
+def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_dir):
     model = state["model"]
     optimizer = state["optimizer"]
 
@@ -248,7 +250,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
         total_lengths += input_ids.size(1)
         t1 = time.perf_counter()
         fabric.print(
-                f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
+                f"iter {state['iter_num']} learning rate {lr} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
                 f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
                 f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. " 
                 # print days as well
