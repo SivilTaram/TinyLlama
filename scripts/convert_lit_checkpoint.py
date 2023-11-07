@@ -245,7 +245,7 @@ def convert_lit_checkpoint(*, checkpoint_name: str, out_dir: Path, model_name: s
     # checkpoint_name cannot be hardcoded because there exists different outputs such as
     # ("lit_model_finetuned.pth", "lit_model_lora_finetuned.pth", "lit_model_adapter_finetuned.pth"")
     pth_file = out_dir / checkpoint_name
-    bin_file = pth_file.with_suffix(".bin")
+    bin_file = out_dir / "pytorch_model.bin"
 
     with incremental_save(bin_file) as saver:
         with contextlib.ExitStack() as stack:
