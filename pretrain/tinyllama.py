@@ -28,22 +28,23 @@ model_name = "tiny_LLaMA_1b"
 # Hyperparameters
 num_of_devices = 8
 global_batch_size = 512
-learning_rate = 3e-5
+learning_rate = 6e-5
 micro_batch_size = 16
-max_step = 100000
+max_step = 500000
 warmup_steps = 2000
 log_step_interval = 10
 eval_iters = 100
 save_step_interval = 5000
 eval_step_interval = 5000
-
+# -100 is the default ignore index
+# ignore_token_id = -100
 
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
 decay_lr = True
-min_lr = 1e-6
+min_lr = 1e-5
 
 batch_size = global_batch_size // num_of_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -56,14 +57,19 @@ lr_decay_iters = max_iters
 log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 
-# Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
+# Be careful about the weights, it should be something as the len(dataset) * actual reweighting
 train_data_config = [
-    ("train_culturax_ind_20b", 1.0),
-    ("train_redpajama_20b", 1.0)
+    # ("train_cleaned_cc100_ind", 1.0)
+    ("train_cleaned_cc100_ind", 105 * 0.25),
+    # ("train_slimpajama_en_60b", 1.0),
+    # ("train_culturax_ind_20b", 1.0),
+    ("train_redpajama_20b", 50 * 1.0),
+    # ("train_ccaligned_parallel", 2.4 * 10)
 ]
 
 val_data_config = [
-    ("valid_culturax_ind_20b", 1.0),
+    ("valid_cleaned_cc100_ind", 1.0),
+    # ("valid_culturax_ind_20b", 1.0),
     ("valid_redpajama_20b", 1.0)
 ]
 
@@ -99,6 +105,7 @@ def setup(
                 auto_wrap_policy={Block},
                 activation_checkpointing_policy=None,
                 state_dict_type="full",
+                sharding_strategy="SHARD_GRAD_OP",
                 limit_all_gathers=True,
                 cpu_offload=False,
             )
@@ -162,9 +169,11 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
     state = {"model": model, "optimizer": optimizer, "hparams": hparams, "iter_num": 0, "step_count": 0}
 
     if resume is True:
-        resume = sorted(out_dir.glob("*.pth"))[-1]
+        resume = sorted(out_dir.glob("*.pth"))
         
     if resume:
+        # take the last checkpoint
+        resume = resume[-1]
         fabric.print(f"Resuming training from {resume}")
         fabric.load(resume, state)
 
@@ -213,6 +222,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_
         if resume:
             if curr_iter < initial_iter:
                 curr_iter += 1
+                fabric.print("skip iter {}".format(curr_iter))
                 continue
             else:
                 resume = False
@@ -282,7 +292,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_
             fabric.log_dict({"metric/val_ppl": math.exp(val_loss.item()), "total_tokens":  model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size},state["step_count"])
             fabric.barrier()
         if not is_accumulating and state["step_count"] % save_step_interval == 0:
-            checkpoint_path = out_dir / f"iter-{state['iter_num']:06d}-ckpt.pth"
+            checkpoint_path = out_dir / f"iter-{state['step_count']:06d}-ckpt.pth"
             fabric.print(f"Saving checkpoint to {str(checkpoint_path)!r}")
             fabric.save(checkpoint_path, state)
 

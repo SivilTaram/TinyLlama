@@ -14,8 +14,8 @@ def split_file_to_chunks(file_path, target_folder):
     shuffle(lines)
     # split into train / valid
     border = int(len(lines) * 0.95)
-    for i in tqdm(range(0, len(lines), 100000)):
-        chunk = lines[i:i+100000]
+    for i in tqdm(range(0, len(lines), 1000000)):
+        chunk = lines[i:i+1000000]
         prefix = "train" if i < border else "valid"
         with open(f"{target_folder}/{prefix}/chunk_{chunk_idx}.jsonl", "w", encoding="utf8") as f:
             f.writelines(chunk)
@@ -24,5 +24,5 @@ def split_file_to_chunks(file_path, target_folder):
 if __name__ == "__main__":
     # split_file_to_chunks("/data/hf_dataset/en_merge_sample.jsonl",
     #                      "/data/hf_dataset/en_merge_sample")
-    split_file_to_chunks("../../slimpajama_en_60b.jsonl",
-                        "/home/aiops/liuqian/TinyLlama/hf_dataset/slimpajama_en_60b")
+    split_file_to_chunks("../../cleaned_cc100_ind.jsonl",
+                        "/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_ind")

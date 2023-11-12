@@ -1,4 +1,4 @@
-python scripts/convert_hf_checkpoint.py --checkpoint_dir  out/TinyLlama-1.1B-900B --model_name tiny_LLaMA_1b
+python scripts/convert_hf_checkpoint.py --checkpoint_dir ../TinyLlama-1.5T-Model --model_name tiny_LLaMA_1b
 
 python test_weight.py --checkpoint_dir out/TinyLlama-1.1B-intermediate-900B
 
