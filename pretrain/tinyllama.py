@@ -25,11 +25,14 @@ import random
 
 model_name = "tiny_LLaMA_1b"
 
+# Experimental settings
+reset_embedding = False
+
 # Hyperparameters
 num_of_devices = 8
 global_batch_size = 512
-learning_rate = 6e-5
-micro_batch_size = 16
+learning_rate = 4e-4
+micro_batch_size = 8
 max_step = 500000
 warmup_steps = 2000
 log_step_interval = 10
@@ -60,10 +63,12 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 # Be careful about the weights, it should be something as the len(dataset) * actual reweighting
 train_data_config = [
     # ("train_cleaned_cc100_ind", 1.0)
-    ("train_cleaned_cc100_ind", 105 * 0.25),
+    # ("train_cleaned_cc100_sen_switch_0.2", 105 * 0.25),
+    ("train_madlad_400_id_clean", 105 * 0.25),
     # ("train_slimpajama_en_60b", 1.0),
     # ("train_culturax_ind_20b", 1.0),
     ("train_redpajama_20b", 50 * 1.0),
+    # ("train_redpajama_20b_sen_switch_0.2", 50 * 1.0),
     # ("train_ccaligned_parallel", 2.4 * 10)
 ]
 
@@ -71,6 +76,7 @@ val_data_config = [
     ("valid_cleaned_cc100_ind", 1.0),
     # ("valid_culturax_ind_20b", 1.0),
     ("valid_redpajama_20b", 1.0)
+    # ("valid_cleaned_cc100_en_ind", 1.0)
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -153,6 +159,19 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
             print("loading model from {}".format(load_from))
             state_dict = torch.load(load_from, map_location=fabric.device)
             model.load_state_dict(state_dict, strict=True, assign=True)
+        # if reset embedding, reset the embedding layer
+        if reset_embedding:
+            torch.nn.init.normal_(model.transformer.wte.weight,
+                                  mean=0.0, std=math.sqrt(2.0 / 5 / model.transformer.wte.weight.size(1)))
+            # reset the output layer, also
+            torch.nn.init.normal_(model.lm_head.weight,
+                                  mean=0.0, std=math.sqrt(2.0 / 5 / model.lm_head.weight.size(1)))
+            for n, p in model.named_parameters():
+                if "wte" not in n and "lm_head" not in n:
+                    p.requires_grad = False
+                else:
+                    print("resetting {}".format(n))
+                    p.requires_grad = True
 
 
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
@@ -161,7 +180,8 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
     model = fabric.setup(model)
     
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
     )
     # optimizer = FusedAdam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2),adam_w_mode=True)
     optimizer = fabric.setup_optimizers(optimizer)
