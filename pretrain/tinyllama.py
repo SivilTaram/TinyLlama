@@ -31,14 +31,14 @@ reset_embedding = False
 # Hyperparameters
 num_of_devices = 8
 global_batch_size = 512
-learning_rate = 4e-4
+learning_rate = 6e-5
 micro_batch_size = 8
 max_step = 500000
 warmup_steps = 2000
 log_step_interval = 10
 eval_iters = 100
-save_step_interval = 5000
-eval_step_interval = 5000
+save_step_interval = 2500
+eval_step_interval = 2500
 # -100 is the default ignore index
 # ignore_token_id = -100
 
@@ -62,14 +62,16 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Be careful about the weights, it should be something as the len(dataset) * actual reweighting
 train_data_config = [
-    # ("train_cleaned_cc100_ind", 1.0)
-    # ("train_cleaned_cc100_sen_switch_0.2", 105 * 0.25),
-    ("train_madlad_400_id_clean", 105 * 0.25),
+    # ("train_cleaned_cc100_word_switch_0.5_new", 1.0),
+    ("train_madlad_dedup_clean_1", 105 * 0.25),
+    # ("train_cleaned_cc100_word_switch_0.5_new", 105 * 0.25),
+    # ("train_cleaned_cc100_en_ind", 1.0),
     # ("train_slimpajama_en_60b", 1.0),
     # ("train_culturax_ind_20b", 1.0),
     ("train_redpajama_20b", 50 * 1.0),
-    # ("train_redpajama_20b_sen_switch_0.2", 50 * 1.0),
-    # ("train_ccaligned_parallel", 2.4 * 10)
+    # ("train_redpajama_20b_sen_switch_0.5", 50 * 1.0),
+    # ("train_redpajama_20b_word_switch_0.2", 50 * 1.0),
+    # ("train_ccaligned_parallel", 1.0)
 ]
 
 val_data_config = [
