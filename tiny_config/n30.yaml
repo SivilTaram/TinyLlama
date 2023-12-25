@@ -1,0 +1,28 @@
+train:
+  train_doremi_sample_cleaned_cc100_id_sample: 0.06311693411439115
+  train_doremi_sample_cleaned_vi_madlad_sample: 0.07566066651194074
+  train_doremi_sample_wikipedia_th_sample: 0.03854103896764269
+  train_doremi_sample_cleaned_cc100_th_sample: 0.06280192324590486
+  train_doremi_sample_ebook_id: 0.05581714486721481
+  train_doremi_sample_subtitle_id_sample: 0.14715203934063648
+  train_doremi_sample_wikipedia_vi_sample: 0.002957462420600531
+  train_doremi_sample_cleaned_cc100_vi_sample: 0.020973270458238068
+  train_doremi_sample_ebook_th: 0.19101109631784474
+  train_doremi_sample_subtitle_th_sample: 0.1405037162754077
+  train_doremi_sample_cleaned_id_madlad_sample: 0.03867123102482494
+  train_doremi_sample_ebook_vi: 0.06154666937671128
+  train_doremi_sample_subtitle_vi_sample: 0.020657293810519502
+  train_doremi_sample_cleaned_th_madlad_sample: 0.013251518069743617
+  train_doremi_sample_redpajama_en: 0.03961759795806489
+  train_doremi_sample_wikipedia_id_sample: 0.02772039724031403
+valid:
+  valid_doremi_sample_cleaned_cc100_id_sample: 1.0
+  valid_doremi_sample_cleaned_vi_madlad_sample: 1.0
+  valid_doremi_sample_wikipedia_th_sample: 1.0
+  valid_doremi_sample_cleaned_cc100_th_sample: 1.0
+  valid_doremi_sample_wikipedia_vi_sample: 1.0
+  valid_doremi_sample_cleaned_cc100_vi_sample: 1.0
+  valid_doremi_sample_cleaned_id_madlad_sample: 1.0
+  valid_doremi_sample_cleaned_th_madlad_sample: 1.0
+  valid_doremi_sample_redpajama_en: 1.0
+  valid_doremi_sample_wikipedia_id_sample: 1.0
