@@ -46,7 +46,6 @@ class PackedDataset(IterableDataset):
 
         max_num_files = len(self._filenames) // num_shards * num_shards
         filenames = self._filenames[shard_id:max_num_files:num_shards]
-
         return PackedDatasetIterator(
             filenames=filenames,
             n_chunks=self._n_chunks,
@@ -173,6 +172,10 @@ class PackedDatasetIterator:
             self._file_idx = 0
 
         for i in range(self._n_chunks):
+            # print('loading chunk', i)
+            # print('file_idx', self._file_idx)
+            # print('len(self._filenames)', len(self._filenames))
+            # print(self._filenames)
             filename = self._filenames[self._file_idx + i]
             if self._dtype is None:
                 self._dtype, self._chunk_size = self._read_header(filename)
@@ -219,17 +222,29 @@ class CombinedDataset(IterableDataset):
         n_datasets = len(datasets)
         if weights is None:
             self._weights = [1 / n_datasets] * n_datasets
-
-    def __iter__(self):
-        return CombinedDatasetIterator(self._datasets, self._seed, self._weights)
-
-
-class CombinedDatasetIterator:
-    def __init__(self, datasets, seed, weights):
-        self._datasets = [iter(el) for el in datasets]
-        self._weights = weights
         self._rng = random.Random(seed)
+        
+    def __iter__(self):
+        # The iterator state is initialized here
+        self._dataset_iters = [iter(dataset) for dataset in self._datasets]
+        return self
 
     def __next__(self):
-        (dataset,) = self._rng.choices(self._datasets, weights=self._weights, k=1)
-        return next(dataset)
+        # Select one of the datasets based on the weights
+        # print('weights', self._weights)
+        # print(self)
+        idx = self._rng.choices(range(len(self._datasets)), weights=self._weights, k=1)[0]
+        # print('chose dataset', idx, 'with weight', self._weights[idx])
+        return next(self._dataset_iters[idx])
+
+
+# class CombinedDatasetIterator:
+#     def __init__(self, datasets, seed, weights):
+#         self._datasets = [iter(el) for el in datasets]
+#         self._weights = weights
+#         self._rng = random.Random(seed)
+
+#     def __next__(self):
+#         idx = self._rng.choices(range(len(self._datasets)), weights=self._weights, k=1)[0]
+#         print('chose dataset', idx, 'with weight', self._weights[idx])
+#         return next(self._datasets[idx])

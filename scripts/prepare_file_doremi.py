@@ -35,7 +35,9 @@ def prepare_full(
     destination_path.mkdir(parents=True, exist_ok=True)
 
     tokenizer = Tokenizer(tokenizer_path)
-
+    # print tokenizer.vocab_size
+    print(tokenizer.vocab_size)
+    
     # Use the provided filenames_subset or default to all filenames
     filenames = filenames_subset 
     
@@ -44,7 +46,7 @@ def prepare_full(
             f"No files matching {slimpajama_sets[split]} found at {source_path}. \n"
             "Make sure you download the data..."
         )
-
+        
     builder = packed_dataset.PackedDatasetBuilder(
         outdir=destination_path,
         prefix=f"{split}_{shortname}_{process_id}",  # Use process_id to differentiate builders
@@ -73,7 +75,7 @@ def prepare(
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     destination_path: Path = Path("data/red_pajama_sample"),
     short_name: str = "ind",
-    chunk_size: int = 2049 * 1024,
+    chunk_size: int = 2049 * 512,
     split: str="train",
     percentage: float = 1.0,
 ) -> None:
@@ -82,14 +84,12 @@ def prepare(
     filenames = glob.glob(os.path.join(source_path, slimpajama_sets[split]), recursive=True)
     filenames = filenames[:int(len(filenames) * percentage)]
     
-    num_processes = min(cpu_count(), len(filenames))
-    chunked_filenames = np.array_split(filenames, num_processes)
-
     processes = []
     start_time = time.time()
 
-    for i, subset in enumerate(chunked_filenames):
-        p = Process(target=prepare_full, args=(source_path, tokenizer_path, destination_path, chunk_size, short_name, split, list(subset), i))
+    for i, filename in enumerate(filenames):
+        subset_name = short_name + "_" + filename.split("/")[-1].split(".")[0]
+        p = Process(target=prepare_full, args=(source_path, tokenizer_path, destination_path, chunk_size, subset_name, split, [filename], i))
         processes.append(p)
         p.start()
 

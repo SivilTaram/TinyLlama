@@ -7,6 +7,7 @@ from typing import List
 import numpy as np
 from tqdm import tqdm
 from multiprocessing import Process, cpu_count
+import random
 
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
@@ -24,7 +25,8 @@ slimpajama_sets = {
 
 def prepare_full(
     source_path: Path,
-    tokenizer_path: Path,
+    new_tokenizer_path: Path,
+    old_tokenizer_path: Path,
     destination_path: Path,
     chunk_size: int,
     shortname: str = "ind",
@@ -34,8 +36,9 @@ def prepare_full(
 ) -> None:
     destination_path.mkdir(parents=True, exist_ok=True)
 
-    tokenizer = Tokenizer(tokenizer_path)
-
+    new_tokenizer = Tokenizer(new_tokenizer_path)
+    old_tokenizer = Tokenizer(old_tokenizer_path)
+        
     # Use the provided filenames_subset or default to all filenames
     filenames = filenames_subset 
     
@@ -44,14 +47,14 @@ def prepare_full(
             f"No files matching {slimpajama_sets[split]} found at {source_path}. \n"
             "Make sure you download the data..."
         )
-
+        
     builder = packed_dataset.PackedDatasetBuilder(
         outdir=destination_path,
         prefix=f"{split}_{shortname}_{process_id}",  # Use process_id to differentiate builders
         chunk_size=chunk_size,
-        sep_token=tokenizer.bos_id,
+        sep_token=new_tokenizer.bos_id,
         dtype="auto",
-        vocab_size=tokenizer.vocab_size,
+        vocab_size=new_tokenizer.vocab_size,
     )
 
     for filepath in filenames:
@@ -59,21 +62,19 @@ def prepare_full(
         with open(filepath, "r", encoding="utf-8") as f:
             for row in tqdm(f):
                 text = json.loads(row)["text"]
+                # randomly choose between old and new tokenizer
+                tokenizer = old_tokenizer if random.random() < 0.5 else new_tokenizer
                 text_ids = tokenizer.encode(text)
                 builder.add_array(np.array(text_ids, dtype=builder.dtype))
-
-    if split == "train":
-        builder.write_reminder()
-    else:
-        print("Skipping reminder file for the validation set")
 
 
 def prepare(
     source_path: Path = Path("data/RedPajama-Data-1T-Sample"),
-    tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
+    new_tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
+    old_tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     destination_path: Path = Path("data/red_pajama_sample"),
     short_name: str = "ind",
-    chunk_size: int = 2049 * 1024,
+    chunk_size: int = 2049 * 512,
     split: str="train",
     percentage: float = 1.0,
 ) -> None:
@@ -82,14 +83,14 @@ def prepare(
     filenames = glob.glob(os.path.join(source_path, slimpajama_sets[split]), recursive=True)
     filenames = filenames[:int(len(filenames) * percentage)]
     
-    num_processes = min(cpu_count(), len(filenames))
-    chunked_filenames = np.array_split(filenames, num_processes)
-
     processes = []
     start_time = time.time()
 
-    for i, subset in enumerate(chunked_filenames):
-        p = Process(target=prepare_full, args=(source_path, tokenizer_path, destination_path, chunk_size, short_name, split, list(subset), i))
+    for i, filename in enumerate(filenames):
+        subset_name = short_name + "_" + filename.split("/")[-1].split(".")[0]
+        p = Process(target=prepare_full, args=(source_path, new_tokenizer_path, 
+                                               old_tokenizer_path,
+                                               destination_path, chunk_size, subset_name, split, [filename], i))
         processes.append(p)
         p.start()
 

@@ -1,0 +1,6 @@
+train:
+  train_cleaned_cc100_ind: 1
+  train_redpajama_20b: 2
+valid:
+  valid_cleaned_cc100_ind: 1.0
+  valid_redpajama_20b: 1.0

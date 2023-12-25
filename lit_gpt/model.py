@@ -280,8 +280,8 @@ class CausalSelfAttention(nn.Module):
             and q.dtype in (torch.float16, torch.bfloat16)
         ):
             from flash_attn import flash_attn_func
-
             return flash_attn_func(q, k, v, dropout_p=0.0, softmax_scale=scale, causal=True)
+    
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)

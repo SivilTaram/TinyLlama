@@ -9,16 +9,17 @@ def merge_datasets(ind_folder_path, en_folder_path, new_folder_path):
     # get the list of files
     ind_files = os.listdir(ind_folder_path)
     en_files = os.listdir(en_folder_path)
-    # only sample 25% from the indian dataset
-    ind_files = ind_files[::4]
+    # select 30% of the indonesia files
+    random.shuffle(ind_files)
+    ind_files = ind_files[:int(len(ind_files)*0.3)]
     # read all the files
     all_lines = []
-    for file in tqdm(ind_files):
-        with open(os.path.join(ind_folder_path, file), "r") as f:
+    for file_path in tqdm(ind_files):
+        with open(os.path.join(ind_folder_path, file_path), "r") as f:
             all_lines.extend(f.readlines())
     # read all the files
-    for file in tqdm(en_files):
-        with open(os.path.join(en_folder_path, file), "r") as f:
+    for file_path in tqdm(en_files):
+        with open(os.path.join(en_folder_path, file_path), "r") as f:
             all_lines.extend(f.readlines())
     # shuffle the lines
     random.shuffle(all_lines)
@@ -31,9 +32,9 @@ def merge_datasets(ind_folder_path, en_folder_path, new_folder_path):
         chunk_idx += 1
 
 if __name__ == "__main__":
-    merge_datasets("/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_ind/train",
+    merge_datasets("/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_word_switch_0.1_new/train",
                    "/home/aiops/liuqian/TinyLlama/hf_dataset/redpajama_20b/train",
-                   "/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_en_ind/train")
-    merge_datasets("/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_ind/valid",
-                   "/home/aiops/liuqian/TinyLlama/hf_dataset/redpajama_20b/valid",
-                   "/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_en_ind/valid")
+                   "/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_en_ind_word_switch_oracle/train")
+    # merge_datasets("/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_word_switch_0.1_new/valid",
+    #                "/home/aiops/liuqian/TinyLlama/hf_dataset/redpajama_20b/valid",
+    #                "/home/aiops/liuqian/TinyLlama/hf_dataset/cleaned_cc100_en_ind_word_switch_oracle/valid")

@@ -6,8 +6,10 @@ def get_prefix(folder_path):
     all_files = os.listdir(folder_path)
     # shuffle
     random.shuffle(all_files)
+    # filter prefix with doremi
+    all_files = [file_path for file_path in all_files if "train_the_pile_subsample_p10_arxiv" in file_path]
     # print first 100
-    print(all_files[:100])
+    print(len(all_files))
     
     
 def delete_prefix(folder_path, prefix):
@@ -33,7 +35,7 @@ def replace_symbol(folder_path):
             
                     
 if __name__ == "__main__":
-    # get_prefix("../../lit_dataset")
-    # delete_prefix("../../lit_dataset", "train_madlad_400_id_clean")
-    replace_symbol("../../hf_dataset/madlad_dedup_clean_1/train")
-    replace_symbol("../../hf_dataset/madlad_dedup_clean_1/valid")
+    # get_prefix("../../../TinyLlama-Data/lit_dataset_newtoken")
+    delete_prefix("../../../TinyLlama-Data/lit_dataset_newtoken", "train_the_pile_subsample_p10")
+    # replace_symbol("../../hf_dataset/madlad_dedup_clean_1/train")
+    # replace_symbol("../../hf_dataset/madlad_dedup_clean_1/valid")
