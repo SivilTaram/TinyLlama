@@ -13,7 +13,7 @@ train:
   train_mix_doremi_sample_ebook_vi: 0.21596948703009783
   train_mix_doremi_sample_subtitle_vi_sample: 0.11012072010500916
   train_mix_doremi_sample_cleaned_th_madlad_sample: 0.014713400408285867
-  train_mix_doremi_sample_redpajama_en: 0.60
+  train_mix_doremi_sample_redpajama_en: 0.30
   train_mix_doremi_sample_wikipedia_id_sample: 0.012489558217835019
 valid:
   valid_mix_doremi_sample_cleaned_cc100_id_sample: 1.0

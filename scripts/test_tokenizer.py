@@ -1,7 +1,7 @@
 import sentencepiece as spm
 
 # Load the SentencePiece tokenizer model
-model_path = '../data/mistral_sea/tokenizer.model'
+model_path = '../data/new_llama/tokenizer.model'
 sp = spm.SentencePieceProcessor()
 sp.load(model_path)
 

@@ -22,23 +22,26 @@ from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision
 from pytorch_lightning.loggers import WandbLogger
 from lit_gpt import FusedCrossEntropyLoss
 import random
+import yaml
 
-model_name = "tiny_LLaMA_1b"
+# model_name = "tiny_LLaMA_mistral_120M"
+model_name = "tiny_LLaMA_vocab_1b"
 
 # Experimental settings
 reset_embedding = False
+dynamic_weight = False
 
 # Hyperparameters
 num_of_devices = 8
 global_batch_size = 512
-learning_rate = 6e-5
-micro_batch_size = 8
-max_step = 500000
-warmup_steps = 2000
+learning_rate = 4e-4
+micro_batch_size = 4
+max_step = 10000
+warmup_steps = 1000
 log_step_interval = 10
 eval_iters = 100
-save_step_interval = 2500
-eval_step_interval = 2500
+save_step_interval = 2000
+eval_step_interval = 100
 # -100 is the default ignore index
 # ignore_token_id = -100
 
@@ -62,23 +65,17 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Be careful about the weights, it should be something as the len(dataset) * actual reweighting
 train_data_config = [
-    # ("train_cleaned_cc100_word_switch_0.5_new", 1.0),
-    ("train_madlad_dedup_clean_1", 105 * 0.25),
-    # ("train_cleaned_cc100_word_switch_0.5_new", 105 * 0.25),
-    # ("train_cleaned_cc100_en_ind", 1.0),
-    # ("train_slimpajama_en_60b", 1.0),
-    # ("train_culturax_ind_20b", 1.0),
-    ("train_redpajama_20b", 50 * 1.0),
-    # ("train_redpajama_20b_sen_switch_0.5", 50 * 1.0),
-    # ("train_redpajama_20b_word_switch_0.2", 50 * 1.0),
-    # ("train_ccaligned_parallel", 1.0)
+    ("train_cleaned_cc100_ind", 5),
+    ("train_redpajama_20b", 1.5)
 ]
 
 val_data_config = [
-    ("valid_cleaned_cc100_ind", 1.0),
-    # ("valid_culturax_ind_20b", 1.0),
-    ("valid_redpajama_20b", 1.0)
-    # ("valid_cleaned_cc100_en_ind", 1.0)
+    [
+        ("valid_cleaned_cc100_ind", 1.0),
+    ],
+    [
+        ("valid_redpajama_20b", 1.0),
+    ]
 ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -88,19 +85,22 @@ logger = step_csv_logger("out", random_name, flush_logs_every_n_steps=log_iter_i
 # log hyper-parameters into wandb
 wandb_logger = WandbLogger()
 wandb_logger.log_hyperparams(hparams)
-# also log the train & val data config
-wandb_logger.log_hyperparams({"train_data_config": train_data_config, "val_data_config": val_data_config})
 
 def setup(
     devices: int = num_of_devices,
     train_data_dir: Path = Path("data/redpajama_sample"),
     val_data_dir: Optional[Path] = None,
+    data_yaml_file: Optional[Path] = None,
     precision: Optional[str] = None,
     tpu: bool = False,
     resume: Union[bool, Path] = False,
     out_name: str = "default_model",
     load_from: Optional[Path] = None,
 ) -> None:
+    # may modify the global train_data_config
+    global train_data_config
+    global val_data_config
+    
     precision = precision or get_default_supported_precision(training=True, tpu=tpu)
 
     if devices > 1:
@@ -122,6 +122,39 @@ def setup(
 
     fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
     fabric.print(hparams)
+    
+    # if train config exists as a yaml file, load it
+    if data_yaml_file is not None:
+        data_yaml_file = Path(data_yaml_file)
+        if data_yaml_file.exists():
+            fabric.print("loading config from {}".format(data_yaml_file))
+            with open(data_yaml_file, "r") as f:
+                # template yaml file is as
+                # train_file: weight
+                config = yaml.safe_load(f)
+            if "train" in config:
+                train_config = []
+                for k, v in config["train"].items():
+                    train_config.append((k, v))
+                # update the config
+                train_data_config = train_config
+            if "valid" in config:
+                val_config = []
+                for k, v in config["valid"].items():
+                    # TODO: by deafult we use separate validation set
+                    val_config.append([(k, v)])
+                val_data_config = val_config
+            # see if any local variable is in the config, if so, update it
+            for k, v in config.items():
+                if k in globals():
+                    fabric.print("update {} to {}".format(k, v))
+                    globals()[k] = v
+        else:
+            fabric.print("config {} does not exist ".format(data_yaml_file))
+            # exit the program
+            exit(0)
+    # log the train & val data config
+    wandb_logger.log_hyperparams({"train_data_config": train_data_config, "val_data_config": val_data_config})
     #fabric.launch(main, train_data_dir, val_data_dir, resume)
     main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from)
 
@@ -135,7 +168,7 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
 
     config = Config.from_name(model_name)
 
-    train_dataloader, val_dataloader = create_dataloaders(
+    train_dataloader, val_dataloaders = create_dataloaders(
         batch_size=micro_batch_size,
         block_size=config.block_size,
         fabric=fabric,
@@ -143,16 +176,17 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
         val_data_dir=val_data_dir,
         seed=3407,
     )
-    if val_dataloader is None:
-        train_dataloader = fabric.setup_dataloaders(train_dataloader)
-    else:
-        train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
+
+    train_dataloader = fabric.setup_dataloaders(train_dataloader)
+    if val_dataloaders is not None:
+        for i in range(len(val_dataloaders)):
+            val_dataloaders[i] = fabric.setup_dataloaders(val_dataloaders[i])
 
     fabric.seed_everything(3407)  # same seed for every process to init model (FSDP)
 
     fabric.print(f"Loading model with {config.__dict__}")
     t0 = time.perf_counter()
-    with fabric.init_module(empty_init=True):
+    with fabric.init_module(empty_init=True if num_of_devices > 1 else False):
         model = GPT(config)
         model.apply(partial(model._init_weights ,n_layer=config.n_layer))
         # load pretrained model
@@ -160,6 +194,8 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
             # use torch.load to load the model
             print("loading model from {}".format(load_from))
             state_dict = torch.load(load_from, map_location=fabric.device)
+            if "model" in state_dict:
+                state_dict = state_dict["model"]
             model.load_state_dict(state_dict, strict=True, assign=True)
         # if reset embedding, reset the embedding layer
         if reset_embedding:
@@ -200,18 +236,21 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
         fabric.load(resume, state)
 
     train_time = time.perf_counter()
-    train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_dir)
+    train(fabric, state, train_dataloader, val_dataloaders, monitor, resume, out_dir)
     fabric.print(f"Training time: {(time.perf_counter()-train_time):.2f}s")
     if fabric.device.type == "cuda":
         fabric.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB")
 
 
-def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_dir):
+def train(fabric, state, train_dataloader, val_dataloaders, monitor, resume, out_dir):
     model = state["model"]
     optimizer = state["optimizer"]
 
-    if val_dataloader is not None:
-        validate(fabric, model, val_dataloader)  # sanity check
+    if val_dataloaders is not None:
+        # for i in range(len(val_dataloaders)):
+        #     validate(fabric, model, val_dataloaders[i])  # sanity check
+        # validate(fabric, model, val_dataloaders[0])
+        pass
 
     with torch.device("meta"):
         meta_model = GPT(model.config)
@@ -237,9 +276,19 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_
     
     initial_iter = state["iter_num"]
     curr_iter = 0
-            
+    init_english_distribution = {"train_doremi_sample_redpajama_en": 1.0}
+    # find the value of the key in the train_data_config
+    init_distribution = [0.0] * len(train_data_config)
+    for i in range(len(train_data_config)):
+        if train_data_config[i][0] in init_english_distribution:
+            init_distribution[i] = init_english_distribution[train_data_config[i][0]]
+            break
+    final_distribution = [0.0] * len(train_data_config)
+    for i in range(len(train_data_config)):
+        final_distribution[i] = train_data_config[i][1]
+    
     loss_func = FusedCrossEntropyLoss()
-    for  train_data in train_dataloader:
+    for train_data in train_dataloader:
         # resume loader state. This is not elegant but it works. Should rewrite it in the future.
         if resume:
             if curr_iter < initial_iter:
@@ -254,6 +303,16 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_
         if state["iter_num"] >= max_iters:
             break
         
+        if dynamic_weight and state["iter_num"] < warmup_iters:
+            # update the weight of the dataset
+            weight = [init + (final - init) * state["iter_num"] / warmup_iters for init, final in zip(init_distribution, final_distribution)]
+            # normalize the weight into sum to 1
+            sum_weight = sum(weight)
+            weight = [el / sum_weight for el in weight]
+            # update the weight in the train_loader
+            train_dataloader.dataset._weights = weight
+            fabric.print("update weight to {}".format(weight))
+            
         # determine and set the learning rate for this iteration
         lr = get_lr(state["iter_num"]) if decay_lr else learning_rate
         for param_group in optimizer.param_groups:
@@ -301,18 +360,22 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_
         )
 
             
-            
-            
-        if val_dataloader is not None and not is_accumulating and state["step_count"] % eval_step_interval == 0:
-            
-            t0 = time.perf_counter()
-            val_loss = validate(fabric, model, val_dataloader)
-            t1 = time.perf_counter() - t0
-            monitor.eval_end(t1)
-            fabric.print(f"step {state['iter_num']}: val loss {val_loss:.4f}, val time: {t1 * 1000:.2f}ms")
-            fabric.log_dict({"metric/val_loss": val_loss.item(), "total_tokens":  model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size},state["step_count"])
-            fabric.log_dict({"metric/val_ppl": math.exp(val_loss.item()), "total_tokens":  model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size},state["step_count"])
-            fabric.barrier()
+        if val_dataloaders is not None and not is_accumulating and state["step_count"] % eval_step_interval == 0:
+            try:            
+                val_names = [name[0][0].replace("valid_", "") for name in val_data_config]
+            except Exception as e:
+                print(e)
+                val_names = [str(i) for i in range(len(val_dataloaders))]
+            for i in range(len(val_dataloaders)):
+                t0 = time.perf_counter()
+                val_loss = validate(fabric, model, val_dataloaders[i], val_names[i])
+                t1 = time.perf_counter() - t0
+                monitor.eval_end(t1)
+                fabric.print(f"step {state['iter_num']}: {val_names[i]} val loss {val_loss:.4f}, val time: {t1 * 1000:.2f}ms")
+                fabric.log_dict({f"metric/{val_names[i]}_val_loss": val_loss.item(), "total_tokens": model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size}, state["step_count"])
+                fabric.log_dict({f"metric/{val_names[i]}_val_ppl": math.exp(val_loss.item()), "total_tokens": model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size}, state["step_count"])
+                fabric.barrier()
+
         if not is_accumulating and state["step_count"] % save_step_interval == 0:
             checkpoint_path = out_dir / f"iter-{state['step_count']:06d}-ckpt.pth"
             fabric.print(f"Saving checkpoint to {str(checkpoint_path)!r}")
@@ -320,30 +383,31 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, out_
 
         
 @torch.no_grad()
-def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoader) -> torch.Tensor:
-    fabric.print("Validating ...")
+def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoader, name: str = None) -> torch.Tensor:
+    fabric.print(f"Validating {name} ...")
     model.eval()
 
     losses = torch.zeros(eval_iters, device=fabric.device)
     for k, val_data in enumerate(val_dataloader):
+        # fabric.print("val data: {}".format(val_data))
         if k >= eval_iters:
             break
         input_ids = val_data[:, 0 : model.config.block_size].contiguous()
         targets = val_data[:, 1 : model.config.block_size + 1].contiguous()
         logits = model(input_ids)
         loss = chunked_cross_entropy(logits, targets, chunk_size=0)
-
+    
         # loss_func = FusedCrossEntropyLoss()
         # loss = loss_func(logits, targets)
         losses[k] = loss.item()
-        
+    
+    # print top 100 losses
     out = losses.mean()
-
     model.train()
     return out
 
 
-def create_dataloader(
+def create_train_dataloader(
     batch_size: int, block_size: int, data_dir: Path, fabric, shuffle: bool = True, seed: int = 12345, split="train"
 ) -> DataLoader:
     datasets = []
@@ -358,7 +422,7 @@ def create_dataloader(
             # n_chunks control the buffer size. 
             # Note that the buffer size also impacts the random shuffle
             # (PackedDataset is an IterableDataset. So the shuffle is done by prefetch a buffer and shuffle the buffer)
-            n_chunks=8,
+            n_chunks=1,
             block_size=block_size,
             shuffle=shuffle,
             seed=seed+fabric.global_rank,
@@ -381,6 +445,55 @@ def create_dataloader(
     return DataLoader(combined_dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
 
 
+def create_val_dataloader(
+    batch_size: int, block_size: int, data_dir: Path, fabric, shuffle: bool = True, seed: int = 12345, split="train"
+) -> DataLoader:
+    
+    val_data_loaders = []
+    for data_config in val_data_config:
+        datasets = []
+        for prefix, _ in data_config:
+            filenames = sorted(glob.glob(str(data_dir / f"{prefix}*")))
+            random.seed(seed)
+            random.shuffle(filenames)
+
+            dataset = PackedDataset(
+                filenames,
+                # n_chunks control the buffer size. 
+                # Note that the buffer size also impacts the random shuffle
+                # (PackedDataset is an IterableDataset. So the shuffle is done by prefetch a buffer and shuffle the buffer)
+                n_chunks=1,
+                block_size=block_size,
+                shuffle=shuffle,
+                seed=seed+fabric.global_rank,
+                num_processes=fabric.world_size,
+                process_rank=fabric.global_rank,
+            )
+            datasets.append(dataset)
+
+        if not datasets:
+            raise RuntimeError(
+                f"No data found at {data_dir}. Make sure you ran prepare_redpajama.py to create the dataset."
+            )
+
+        weights = [weight for _, weight in data_config]
+        sum_weights = sum(weights)
+        weights = [el / sum_weights for el in weights]
+
+        check_flag = True
+        for dataset in datasets:
+            if len(dataset._filenames) == 0:
+                check_flag = False
+                break
+        
+        if check_flag:
+            combined_dataset = CombinedDataset(datasets=datasets, seed=seed, weights=weights)
+            val_data_loaders.append(DataLoader(combined_dataset, batch_size=batch_size, shuffle=False, pin_memory=True))
+        else:
+            fabric.print("skip val dataset {}".format(data_config))
+    return val_data_loaders
+
+
 def create_dataloaders(
     batch_size: int,
     block_size: int,
@@ -391,7 +504,7 @@ def create_dataloaders(
 ) -> Tuple[DataLoader, DataLoader]:
     # Increase by one because we need the next word as well
     effective_block_size = block_size + 1
-    train_dataloader = create_dataloader(
+    train_dataloader = create_train_dataloader(
         batch_size=batch_size,
         block_size=effective_block_size,
         fabric=fabric,
@@ -401,7 +514,7 @@ def create_dataloaders(
         split="train"
     )
     val_dataloader = (
-        create_dataloader(
+        create_val_dataloader(
             batch_size=batch_size,
             block_size=effective_block_size,
             fabric=fabric,
