@@ -24,8 +24,8 @@ from lit_gpt import FusedCrossEntropyLoss
 import random
 import yaml
 
-# model_name = "tiny_LLaMA_mistral_120M"
-model_name = "tiny_LLaMA_vocab_1b"
+# model_name = "tiny_LLaMA_120M"
+model_name = "tiny_LLaMA_1b"
 
 # Experimental settings
 reset_embedding = False
@@ -33,15 +33,17 @@ dynamic_weight = False
 
 # Hyperparameters
 num_of_devices = 8
-global_batch_size = 512
+global_batch_size = 256
+
 learning_rate = 4e-4
 micro_batch_size = 4
-max_step = 10000
+
+max_step = 40000
 warmup_steps = 1000
 log_step_interval = 10
 eval_iters = 100
-save_step_interval = 2000
-eval_step_interval = 100
+save_step_interval = 5000
+eval_step_interval = 1000
 # -100 is the default ignore index
 # ignore_token_id = -100
 
@@ -49,14 +51,13 @@ weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
-decay_lr = True
+decay_lr = False
 min_lr = 1e-5
 
 batch_size = global_batch_size // num_of_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
 assert gradient_accumulation_steps > 0
 warmup_iters = warmup_steps * gradient_accumulation_steps
-
 
 max_iters = max_step * gradient_accumulation_steps
 lr_decay_iters = max_iters
@@ -84,7 +85,6 @@ random_name = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=10))
 logger = step_csv_logger("out", random_name, flush_logs_every_n_steps=log_iter_interval)
 # log hyper-parameters into wandb
 wandb_logger = WandbLogger()
-wandb_logger.log_hyperparams(hparams)
 
 def setup(
     devices: int = num_of_devices,
@@ -120,9 +120,7 @@ def setup(
     else:
         strategy = "auto"
 
-    fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
-    fabric.print(hparams)
-    
+    fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])    
     # if train config exists as a yaml file, load it
     if data_yaml_file is not None:
         data_yaml_file = Path(data_yaml_file)
@@ -144,15 +142,31 @@ def setup(
                     # TODO: by deafult we use separate validation set
                     val_config.append([(k, v)])
                 val_data_config = val_config
+            # delete train and valid
+            del config["train"]
+            del config["valid"]
             # see if any local variable is in the config, if so, update it
             for k, v in config.items():
                 if k in globals():
                     fabric.print("update {} to {}".format(k, v))
                     globals()[k] = v
+            # if global batch size is changed, update the batch size
+            if "global_batch_size" in config.keys():
+                globals()["batch_size"] = global_batch_size // num_of_devices
+                globals()["gradient_accumulation_steps"] = batch_size // micro_batch_size
+                globals()["warmup_iters"] = warmup_steps * gradient_accumulation_steps
+                globals()["max_iters"] = max_step * gradient_accumulation_steps
+                globals()["lr_decay_iters"] = max_iters
+                globals()["log_iter_interval"] = log_step_interval * gradient_accumulation_steps                
         else:
             fabric.print("config {} does not exist ".format(data_yaml_file))
             # exit the program
             exit(0)
+    
+    hparams = {k: v for k, v in globals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
+    fabric.print(hparams)
+    
+    wandb_logger.log_hyperparams(hparams)
     # log the train & val data config
     wandb_logger.log_hyperparams({"train_data_config": train_data_config, "val_data_config": val_data_config})
     #fabric.launch(main, train_data_dir, val_data_dir, resume)

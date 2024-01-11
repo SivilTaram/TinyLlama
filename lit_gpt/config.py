@@ -314,7 +314,7 @@ tiny_LLaMA = [
         norm_eps=1e-5,
         _mlp_class="LLaMAMLP",
         intermediate_size=2048,
-        n_query_groups=1,
+        n_query_groups=12,
     ),
     dict(
         org="StatNLP-research",

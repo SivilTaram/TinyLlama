@@ -1,0 +1,16 @@
+train:
+  train_data_mixture_en_redpajama: 0.2107902429363866
+  train_data_mixture_cleaned_cc100_ind_dedup: 0.0787887869771158
+  train_data_mixture_cleaned_cc100_th_dedup: 0.3836614122616659
+  train_data_mixture_cleaned_cc100_vi_dedup: 0.3267595578248317
+valid:
+  valid_data_mixture_en_redpajama: 1.0
+  valid_data_mixture_id_wikipedia: 1.0
+  valid_data_mixture_th_wikipedia: 1.0
+  valid_data_mixture_vi_wikipedia: 1.0
+learning_rate: 0.00011950122135193375
+warmup_steps: 0
+total_steps: 10000
+decay_lr: false
+global_batch_size: 128
+model_name: tiny_LLaMA_mistral_120M

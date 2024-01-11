@@ -16,5 +16,5 @@ lightning run model \
     --val_data_dir ../lit_dataset \
     --out_name $MODEL_NAME \
     --resume True \
-    --load_from ../TinyLlama-1T-Model/lit_model.pth
-    # --load_from /home/aiops/liuqian/TinyLlama/TinyLlama/checkpoints/tinyllama_1T_120M_mistral_en/iter-040000-ckpt.pth
+    # --load_from ../TinyLlama-1T-Model/lit_model.pth
+    --load_from /home/aiops/liuqian/TinyLlama/TinyLlama/checkpoints/tinyllama_1T_120M_mistral_en/iter-040000-ckpt.pth

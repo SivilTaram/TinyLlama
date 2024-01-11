@@ -1,0 +1,13 @@
+train:
+  train_data_mixture_en_redpajama: 1.0
+valid:
+  valid_data_mixture_en_redpajama: 1.0
+  valid_data_mixture_id_wikipedia: 1.0
+  valid_data_mixture_th_wikipedia: 1.0
+  valid_data_mixture_vi_wikipedia: 1.0
+  valid_data_mixture_all_test: 1.0
+learning_rate: 0.000027057
+warmup_steps: 0
+total_steps: 10000
+decay_lr: false
+global_batch_size: 256

@@ -1,0 +1,39 @@
+train:
+  train_data_mixture_en_redpajama: 0.1700592413791684
+  train_data_mixture_cleaned_cc100_ind_dedup: 0.1172717793906163
+  train_data_mixture_cleaned_cc100_lao_dedup: 0.0007596629796105394
+  train_data_mixture_cleaned_cc100_ms_dedup: 0.006033532145194065
+  train_data_mixture_cleaned_cc100_th_dedup: 0.009385225899324948
+  train_data_mixture_cleaned_cc100_vi_dedup: 0.10365237184627751
+  train_data_mixture_ebook_id_non_ocr: 0.0029066900931457836
+  train_data_mixture_ebook_id_ocr: 0.0002590407013133854
+  train_data_mixture_ebook_ms_non_ocr: 0.0001148327091274339
+  train_data_mixture_ebook_th_non_ocr: 8.519142209652102e-05
+  train_data_mixture_ebook_vi_non_ocr: 0.0003393409830099063
+  train_data_mixture_indonesian_madlad: 0.17079825629494574
+  train_data_mixture_malay_madlad: 0.016271716979348646
+  train_data_mixture_subtitle_id: 0.0007112325039913977
+  train_data_mixture_subtitle_th: 0.0006831195416706927
+  train_data_mixture_subtitle_vi: 0.00018538225590390245
+  train_data_mixture_thai_madlad: 0.07827261114977677
+  train_data_mixture_translation_indonesian: 0.0013761143467319185
+  train_data_mixture_translation_thai: 0.0013610914053176965
+  train_data_mixture_translation_vietnamese: 0.0016770823319199307
+  train_data_mixture_vietnamese_madlad: 0.31085851145068255
+  train_data_mixture_vietnamese_sft_pretrain: 0.004296642306214015
+  train_data_mixture_wikipedia_id_text: 0.0007378077892276067
+  train_data_mixture_wikipedia_th_text: 0.0009376635481261589
+  train_data_mixture_wikipedia_vi_text: 0.0009658585472582298
+valid:
+  valid_data_mixture_en_redpajama: 1.0
+  valid_data_mixture_id_wikipedia: 1.0
+  valid_data_mixture_th_wikipedia: 1.0
+  valid_data_mixture_vi_wikipedia: 1.0
+  valid_data_mixture_all_test: 1.0
+  valid_data_mixture_ms_cc100_all: 1.0
+learning_rate: 0.000265493153248023
+warmup_steps: 0
+total_steps: 10000
+decay_lr: false
+global_batch_size: 128
+model_name: tiny_LLaMA_mistral_120M

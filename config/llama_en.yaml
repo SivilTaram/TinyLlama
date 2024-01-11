@@ -1,0 +1,4 @@
+train:
+  train_redpajama_20b: 1.0
+valid:
+  valid_redpajama_20b: 1.0
