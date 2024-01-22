@@ -15,3 +15,10 @@ python scripts/prepare_starcoder.py --source_path data/starcoderdata/ --tokenize
 /data/TinyLlama/out/code_tiny_LLaMA_1b_python_java_go_cpp_javascript/iter-032000-ckpt.pth
 
 python scripts/convert_lit_checkpoint.py --out_dir /data/TinyLlama/out/tiny_LLaMA_1b/ --checkpoint_name iter-100000-ckpt.pth --model_name tiny_LLaMA_1b
+
+
+python convert_lit_checkpoint.py  --out_dir /home/aiops/liuqian/TinyLlama/models/tinyllama_120M_mistral_en --checkpoint_name iter-020000-ckpt.pth --model_name tiny_LLaMA_mistral_120M
+
+python convert_hf_checkpoint.py --checkpoint_dir /home/aiops/liuqian/TinyLlama/models/tinyllama_120M_mistral_en --model_name tiny_LLaMA_mistral_120M_expand
+
+python convert_hf_checkpoint.py --checkpoint_dir /home/aiops/liuqian/TinyLlama/models/TinyLlama-3T-Model --model_name tiny_LLaMA_1b_expand

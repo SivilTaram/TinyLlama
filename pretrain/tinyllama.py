@@ -23,6 +23,7 @@ from pytorch_lightning.loggers import WandbLogger
 from lit_gpt import FusedCrossEntropyLoss
 import random
 import yaml
+import os
 
 # model_name = "tiny_LLaMA_120M"
 model_name = "tiny_LLaMA_1b"
@@ -30,19 +31,23 @@ model_name = "tiny_LLaMA_1b"
 # Experimental settings
 reset_embedding = False
 dynamic_weight = False
+frozen_old_layers = False
 
 # Hyperparameters
+total_devices = 16
 num_of_devices = 8
-global_batch_size = 256
+num_of_nodes = total_devices // num_of_devices if total_devices >= num_of_devices else 1
 
-learning_rate = 4e-4
-micro_batch_size = 4
+global_batch_size = 480
 
-max_step = 40000
-warmup_steps = 1000
+learning_rate = 5e-5
+micro_batch_size = 10
+
+max_step = 81380
+warmup_steps = 500
 log_step_interval = 10
 eval_iters = 100
-save_step_interval = 5000
+save_step_interval = 10000
 eval_step_interval = 1000
 # -100 is the default ignore index
 # ignore_token_id = -100
@@ -51,10 +56,10 @@ weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
-decay_lr = False
+decay_lr = True
 min_lr = 1e-5
 
-batch_size = global_batch_size // num_of_devices
+batch_size = global_batch_size // total_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
 assert gradient_accumulation_steps > 0
 warmup_iters = warmup_steps * gradient_accumulation_steps
@@ -120,7 +125,11 @@ def setup(
     else:
         strategy = "auto"
 
-    fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])    
+    fabric = L.Fabric(devices=devices,
+                      strategy=strategy,
+                      precision=precision, 
+                      loggers=[logger, wandb_logger],
+                      num_nodes=num_of_nodes)    
     # if train config exists as a yaml file, load it
     if data_yaml_file is not None:
         data_yaml_file = Path(data_yaml_file)
@@ -224,6 +233,16 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
                 else:
                     print("resetting {}".format(n))
                     p.requires_grad = True
+                    
+        if frozen_old_layers:
+            model.requires_grad_(False)
+            # tuned_layer_name = ["7", "13", "lm_head", "wte"]
+            # tuned_layer_name = [str(i) for i in [11, 23]] + ["lm_head", "wte"]
+            tuned_layer_name = ["." + str(i) + "." for i in range(1, 24, 2)] + ["lm_head", "wte"]
+            for n, p in model.named_parameters():
+                if any([layer_name in n for layer_name in tuned_layer_name]):
+                    print("tuning {}".format(n))
+                    p.requires_grad = True
 
 
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
@@ -254,6 +273,21 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
     fabric.print(f"Training time: {(time.perf_counter()-train_time):.2f}s")
     if fabric.device.type == "cuda":
         fabric.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB")
+
+
+def delete_all_except_last(folder_path, file_extension=".pth"):
+    # 获取文件夹中以特定扩展名结尾的所有文件
+    files = [f for f in os.listdir(folder_path) if f.endswith(file_extension)]
+    
+    if len(files) > 5:
+        files.sort(key=lambda x: os.path.getmtime(os.path.join(folder_path, x)))
+        
+        for file_name in files[:-5]:
+            file_path = os.path.join(folder_path, file_name)
+            os.remove(file_path)
+            print(f"Deleted: {file_path}")
+    else:
+        print("Not enough files to delete.")
 
 
 def train(fabric, state, train_dataloader, val_dataloaders, monitor, resume, out_dir):
@@ -344,10 +378,14 @@ def train(fabric, state, train_dataloader, val_dataloaders, monitor, resume, out
             fabric.backward(loss / gradient_accumulation_steps)
 
         if not is_accumulating:
-            fabric.clip_gradients(model, optimizer, max_norm=grad_clip)
+            grad_norm = fabric.clip_gradients(model, optimizer, max_norm=grad_clip)
+            fabric.log_dict({
+                "gradient_norm": grad_norm.item()
+            })
             optimizer.step()
             optimizer.zero_grad()
             state["step_count"] += 1
+            
         elif fabric.device.type == "xla":
             xm.mark_step()
         state["iter_num"] += 1
@@ -392,6 +430,11 @@ def train(fabric, state, train_dataloader, val_dataloaders, monitor, resume, out
 
         if not is_accumulating and state["step_count"] % save_step_interval == 0:
             checkpoint_path = out_dir / f"iter-{state['step_count']:06d}-ckpt.pth"
+            
+            if fabric.global_rank == 0:
+                # delete all the checkpoints except the last one
+                delete_all_except_last(out_dir)
+
             fabric.print(f"Saving checkpoint to {str(checkpoint_path)!r}")
             fabric.save(checkpoint_path, state)
 

@@ -22,7 +22,8 @@ def get_line_count(filename):
         print(f"Error: {e}")
         return None
 
-def split_file_into_fixed_chunks(read_folder, target_folder, prefix, chunk_number=500, oversampling=1.0):
+def split_file_into_fixed_chunks(read_folder, target_folder, prefix,
+                                 chunk_number=500, chunk_threshold=500, oversampling=1.0):
     # take all files with the prefix in the folder
     file_paths = glob.glob(os.path.join(read_folder, prefix + "*"))
     # if the target folder + prefix does not exist, create it
@@ -66,99 +67,117 @@ def split_file_into_fixed_chunks(read_folder, target_folder, prefix, chunk_numbe
                         for line in buffer_lines:
                             wf.write(line)
                     global_index += 1
+                    # break
+                    if global_index >= chunk_threshold:
+                        break
                     buffer_lines.clear()
+
+        if global_index >= chunk_threshold:
+            break
     
     # this is the last chunk
     # assert global_index == chunk_number, "The number of chunks is not equal to the chunk number"
     if global_index != chunk_number:
         print("The number of chunks is not equal to the chunk number")
+
     with open(os.path.join(write_folder, "chunk_{}.jsonl".format(global_index)), "a+", encoding="utf8") as wf:
         for line in buffer_lines:
             wf.write(line)
     buffer_lines.clear()
     
-def merge_chunk_files(read_folder, target_folder, chunk_id):
+def merge_chunk_files(read_folder, target_folder, chunk_id, chunk_span=3):
     # for all sub folders in the read folder, read the chunk_id file and merge them
-    print("Processing chunk {}".format(chunk_id))
-    sub_folders = os.listdir(read_folder)
-    # exclude "train" and "valid"
-    sub_folders = [sub_folder for sub_folder in sub_folders if sub_folder not in ["train", "valid"]]
-    all_lines = []
-    for sub_folder in sub_folders:
-        for i in range(1, 4):
-            idx = chunk_id * 3 + i
-            # get the chunk file path
-            chunk_file_path = os.path.join(read_folder, sub_folder, "chunk_{}.jsonl".format(idx))
-            # read the chunk file
-            if not os.path.exists(chunk_file_path):
-                print("The chunk file {} does not exist".format(chunk_file_path))
-                continue
-            with open(chunk_file_path, "r", encoding="utf8") as f:
-                lines = f.readlines()
-                all_lines.extend(lines)
-    # shuffle the lines
-    random.shuffle(all_lines)
-    # check if every line is a json parseable line
-    # new_lines = []
-    # for line in all_lines:
-    #     try:
-    #         text = json.loads(line)["text"]
-    #         new_lines.append(line)
-    #     except:
-    #         print("Chunk: {} The line {} is not a json parseable line".format(chunk_id, line))
-    # write the lines to the target file
-    with open(os.path.join(target_folder, "chunk_{}.jsonl".format(chunk_id)), "w", encoding="utf8") as wf:
-        wf.writelines(all_lines)
-    print("Finished processing chunk {}".format(chunk_id))
-    
+    try:
+        print("Processing chunk {}".format(chunk_id))
+        sub_folders = os.listdir(read_folder)
+        # exclude "train" and "valid"
+        sub_folders = [sub_folder for sub_folder in sub_folders if sub_folder not in ["train", "valid"]]
+        all_lines = []
+        for sub_folder in sub_folders:
+            for idx in range(chunk_id, chunk_id + chunk_span):
+                # get the chunk file path
+                chunk_file_path = os.path.join(read_folder, sub_folder, "chunk_{}.jsonl".format(idx))
+                # read the chunk file
+                if not os.path.exists(chunk_file_path):
+                    print("The chunk file {} does not exist".format(chunk_file_path))
+                    continue
+                with open(chunk_file_path, "r", encoding="utf8") as f:
+                    lines = f.readlines()
+                    if "valid" in target_folder:
+                        # deduplicate the lines
+                        lines = list(set(lines))
+                    all_lines.extend(lines)
+        # deduplicate the lines and shuffle them
+        all_lines = list(set(all_lines))
+        random.shuffle(all_lines)
+        with open(os.path.join(target_folder, "chunk_{}.jsonl".format(chunk_id)), "w", encoding="utf8") as wf:
+            wf.writelines(all_lines)
+        print("Finished processing chunk {}".format(chunk_id))
+    except Exception as e:
+        print("Error: {}".format(e))
 
-def merge_chunk_files_parallel(read_folder):
+def merge_chunk_files_parallel(read_folder, start_id, end_id, chunk_span, prefix):
     # top 480 are training, the rest 20 are validation
-    # chunk_ids = list(range(0, 160))
-    chunk_ids = list(range(161, 162))
-    merge_func = partial(merge_chunk_files, read_folder, os.path.join(read_folder, "valid"))
-    with multiprocessing.Pool(processes=2) as pool:
+    chunk_ids = list(range(start_id, end_id, chunk_span))
+    # chunk_ids = list(range(161, 162))
+    merge_func = partial(merge_chunk_files,
+                         read_folder, 
+                         os.path.join(read_folder, prefix), 
+                         chunk_span=chunk_span)
+    with multiprocessing.Pool(processes=3) as pool:
         pool.map(merge_func, chunk_ids)
 
 if __name__ == "__main__":
-    # prefix_to_oversampling = {"cleaned_cc100_ind_dedup_doc": 1.777029879,
-    #                           "cleaned_cc100_lao_dedup_doc": 3.334922596,
-    #                         "cleaned_cc100_ms_dedup_doc": 2.873862059,
-    #                         "cleaned_cc100_th_dedup_doc": 4,
-    #                         "cleaned_cc100_vi_dedup_doc": 2.040602955,
-    #                         "ebook_id_non_ocr": 1.99344164,
-    #                         "ebook_id_ocr": 2.218786596,
-    #                         "ebook_ms_non_ocr": 1.947584244,
-    #                         "ebook_th_non_ocr": 2.691466146,
-    #                         "ebook_vi_non_ocr": 2.714485951,
-    #                         "indonesian_madlad": 1.434624562,
-    #                         "indonesian_sft_pretrain": 1.357744334,
-    #                         "malay_madlad": 2.580363187,
-    #                         "subtitle_id": 2.18274727,
-    #                         "subtitle_ms": 1.782301869,
-    #                         "subtitle_th": 4,
-    #                         "subtitle_vi": 2.717562888,
-    #                         "thai_madlad": 2.427850849,
-    #                         "thai_sft_pretrain": 1.437790694,
-    #                         "translation_indonesian": 2.623684902,
-    #                         "translation_thai": 3.644710313,
-    #                         "translation_vietnamese": 1.973620278,
-    #                         "vietnamese_madlad": 1.208597508,
-    #                         "vietnamese_sft_pretrain": 1.3796968,
-    #                         "wikipedia_id_text": 2.181537889,
-    #                         "wikipedia_ms_text": 2.291357552,
-    #                         "wikipedia_th_text": 4,
-    #                         "wikipedia_vi_text": 2.807650139}
+    prefix_to_oversampling = {"redpajama": 0.52,
+                            "cleaned_cc100_ind_dedup": 1.590717536,
+                            "cleaned_cc100_lao_dedup": 1.310873169,
+                            "cleaned_cc100_ms_dedup": 2.572692433,
+                            "cleaned_cc100_th_dedup": 2.06576487,
+                            "cleaned_cc100_vi_dedup": 1.175150307,
+                            "ebook_id_non_ocr": 1.784073169,
+                            "ebook_id_ocr": 1.990833428,
+                            "ebook_ms_non_ocr": 1.720609279,
+                            "ebook_th_non_ocr": 1.29915457,
+                            "ebook_vi_non_ocr": 1.571884399,
+                            "indonesian_madlad": 1.284123889,
+                            # "indonesian_sft_pretrain": 0,
+                            "malay_madlad": 2.309105402,
+                            "subtitle_id": 1.943431342,
+                            "subtitle_ms": 1.644883369,
+                            "subtitle_th": 2.258092665,
+                            "subtitle_vi": 1.538324544,
+                            "thai_madlad": 1.207230403,
+                            # "thai_sft_pretrain": 0,
+                            "translation_indonesian": 2.344973337,
+                            "translation_thai": 1.810940887,
+                            "translation_vietnamese": 1.135346713,
+                            "vietnamese_madlad": 0.6959888856,
+                            # "vietnamese_sft_pretrain": 0,
+                            "wikipedia_id_text": 1.955248684,
+                            "wikipedia_ms_text": 2.067696885,
+                            "wikipedia_th_text": 2.027472096,
+                            "wikipedia_vi_text": 1.616933695}
+
     # for prefix, oversampling in prefix_to_oversampling.items():
     #     print("Processing {}".format(prefix))
     #     split_file_into_fixed_chunks("/nfs-share/sea_corpus",
-    #                                 "/nfs-share/sea_mixed_corpus",
+    #                                 "/nfs-share/mistral_origin_mixed_corpus",
     #                                 prefix,
     #                                 chunk_number=500,
+    #                                 chunk_threshold=501,
     #                                 oversampling=oversampling)
     # split_file_into_fixed_chunks("/nfs-share/redpajama_120B_sample",
     #                             "/nfs-share/sea_mixed_corpus",
     #                             "redpajama_120B_sample",
     #                             chunk_number=500,
     #                             oversampling=1.0)
-    merge_chunk_files_parallel("/nfs-share/sea_mixed_corpus")
+    merge_chunk_files_parallel("/nfs-share/mistral_origin_mixed_corpus",
+                               start_id=1,
+                               end_id=500,
+                               chunk_span=4,
+                               prefix="train")
+    merge_chunk_files_parallel("/nfs-share/mistral_origin_mixed_corpus",
+                               start_id=500,
+                               end_id=501,
+                               chunk_span=1,
+                               prefix="valid")
