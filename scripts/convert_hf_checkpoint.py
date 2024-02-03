@@ -122,6 +122,10 @@ def copy_weights_hf_llama(
         "model.layers.{}.self_attn.q_proj.weight": None,
         "model.layers.{}.self_attn.k_proj.weight": None,
         "model.layers.{}.self_attn.v_proj.weight": None,
+        # for Qwen's model, the qkv weights are split across 3 files
+        "model.layers.{}.self_attn.q_proj.bias": None,
+        "model.layers.{}.self_attn.k_proj.bias": None,
+        "model.layers.{}.self_attn.v_proj.bias": None,
         "model.layers.{}.self_attn.o_proj.weight": "transformer.h.{}.attn.proj.weight",
         "model.layers.{}.self_attn.rotary_emb.inv_freq": None,
         "model.layers.{}.post_attention_layernorm.weight": "transformer.h.{}.norm_2.weight",

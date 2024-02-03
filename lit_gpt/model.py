@@ -100,7 +100,11 @@ class GPT(nn.Module):
 
         # forward the model itself
         x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
-            
+        
+        if self.config.embd_pdrop > 0:
+            x = nn.functional.dropout(x, p=self.config.embd_pdrop,
+                                      training=self.training)
+        
         if not use_kv_cache:
             for block in self.transformer.h:
                 x, *_ = block(x, (cos, sin), max_seq_length)
@@ -171,7 +175,8 @@ class Block(nn.Module):
         h, new_kv_cache = self.attn(n_1, rope, max_seq_length, mask, input_pos, kv_cache)
         if self.config.parallel_residual:
             n_2 = n_1 if self.config.shared_attention_norm else self.norm_2(x)
-            x = x + h + self.mlp(n_2)
+            ffn = self.mlp(n_2)
+            x = x + h + ffn
         else:
             if self.config.shared_attention_norm:
                 raise NotImplementedError(
@@ -180,7 +185,10 @@ class Block(nn.Module):
                 )
             
             x = x + h
-            x = x + self.mlp(self.norm_2(x))
+            ffn = self.mlp(self.norm_2(x))
+            if self.config.resid_pdrop:
+                ffn = nn.functional.dropout(ffn, p=self.config.resid_pdrop, training=self.training)
+            x = x + ffn
         return x, new_kv_cache
 
 
@@ -280,7 +288,7 @@ class CausalSelfAttention(nn.Module):
             and q.dtype in (torch.float16, torch.bfloat16)
         ):
             from flash_attn import flash_attn_func
-            return flash_attn_func(q, k, v, dropout_p=0.0, softmax_scale=scale, causal=True)
+            return flash_attn_func(q, k, v, dropout_p=self.config.attn_pdrop, softmax_scale=scale, causal=True)
     
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
@@ -289,7 +297,7 @@ class CausalSelfAttention(nn.Module):
              k = k.repeat_interleave(q.shape[1]//k.shape[1], dim=1)
              v = v.repeat_interleave(q.shape[1]//v.shape[1], dim=1)
         y = torch.nn.functional.scaled_dot_product_attention(
-            q, k, v, attn_mask=mask, dropout_p=0.0, scale=scale, is_causal=mask is None
+            q, k, v, attn_mask=mask, dropout_p=self.config.attn_pdrop, scale=scale, is_causal=mask is None
         )
         return y.transpose(1, 2)
 

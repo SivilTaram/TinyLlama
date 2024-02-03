@@ -26,7 +26,7 @@ import yaml
 import os
 
 # model_name = "tiny_LLaMA_120M"
-model_name = "tiny_LLaMA_1b"
+model_name = "tiny_LLaMA_120M"
 
 # Experimental settings
 reset_embedding = False
@@ -34,17 +34,17 @@ dynamic_weight = False
 frozen_old_layers = False
 
 # Hyperparameters
-total_devices = 16
+total_devices = 8
 num_of_devices = 8
 num_of_nodes = total_devices // num_of_devices if total_devices >= num_of_devices else 1
 
-global_batch_size = 480
+global_batch_size = 384
 
-learning_rate = 5e-5
-micro_batch_size = 10
+learning_rate = 1e-3
+micro_batch_size = 24
 
-max_step = 81380
-warmup_steps = 500
+max_step = 100000
+warmup_steps = 1000
 log_step_interval = 10
 eval_iters = 100
 save_step_interval = 10000
@@ -52,12 +52,12 @@ eval_step_interval = 1000
 # -100 is the default ignore index
 # ignore_token_id = -100
 
-weight_decay = 1e-1
+weight_decay = 0.1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
 decay_lr = True
-min_lr = 1e-5
+min_lr = 0
 
 batch_size = global_batch_size // total_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -222,11 +222,13 @@ def main(fabric, train_data_dir, val_data_dir, resume, out_name, load_from):
             model.load_state_dict(state_dict, strict=True, assign=True)
         # if reset embedding, reset the embedding layer
         if reset_embedding:
+            # get the original embedding std
+            origin_embed_std = torch.std(model.transformer.wte.weight).item()
             torch.nn.init.normal_(model.transformer.wte.weight,
-                                  mean=0.0, std=math.sqrt(2.0 / 5 / model.transformer.wte.weight.size(1)))
-            # reset the output layer, also
+                                  mean=0.0, std=origin_embed_std)
+            origin_lm_head_std = torch.std(model.lm_head.weight).item()
             torch.nn.init.normal_(model.lm_head.weight,
-                                  mean=0.0, std=math.sqrt(2.0 / 5 / model.lm_head.weight.size(1)))
+                                  mean=0.0, std=origin_lm_head_std)
             for n, p in model.named_parameters():
                 if "wte" not in n and "lm_head" not in n:
                     p.requires_grad = False
@@ -279,7 +281,7 @@ def delete_all_except_last(folder_path, file_extension=".pth"):
     # 获取文件夹中以特定扩展名结尾的所有文件
     files = [f for f in os.listdir(folder_path) if f.endswith(file_extension)]
     
-    if len(files) > 5:
+    if len(files) > 10:
         files.sort(key=lambda x: os.path.getmtime(os.path.join(folder_path, x)))
         
         for file_name in files[:-5]:

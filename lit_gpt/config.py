@@ -19,6 +19,9 @@ class Config:
     n_layer: int = 16
     n_head: int = 32
     n_embd: int = 4096
+    resid_pdrop: float = 0.0
+    embd_pdrop: float = 0.0
+    attn_pdrop: float = 0.0
     rotary_percentage: float = 0.25
     parallel_residual: bool = True
     bias: bool = True
@@ -282,6 +285,27 @@ tiny_LLaMA = [
     ),
     dict(
         org="StatNLP-research",
+        name="tiny_LLaMA_1b_dropout_ffn",
+        block_size=2048,
+        vocab_size=32000,
+        padding_multiple=64,
+        n_layer=22,
+        n_head=32,
+        n_embd=2048,
+        rotary_percentage=1.0,
+        resid_pdrop=0.05,
+        embd_pdrop=0.0,
+        attn_pdrop=0.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5, #Llama 2 use 1e-5. Llama 1 use 1e-6
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5632,
+        n_query_groups=4,
+    ),
+    dict(
+        org="StatNLP-research",
         name="tiny_LLaMA_1b_expand",
         block_size=2048,
         vocab_size=32000,
@@ -406,6 +430,23 @@ tiny_LLaMA = [
         intermediate_size=5632,
         n_query_groups=4,
         condense_ratio= 4
+    ),
+    dict(
+        org="StatNLP-research",
+        name="qwen2_500M",
+        padded_vocab_size=151936,
+        block_size=4096,  # should be 32768 but sliding window attention is not implemented
+        n_layer=24,
+        n_embd=1024,
+        n_head=16,
+        n_query_groups=16,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="RMSNorm",
+        norm_eps=1e-05,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=2816,
     ),
 ]
 configs.extend(tiny_LLaMA)

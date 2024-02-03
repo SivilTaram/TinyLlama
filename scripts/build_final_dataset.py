@@ -55,8 +55,10 @@ def split_file_into_fixed_chunks(read_folder, target_folder, prefix,
             if oversampling > 1.01:
                 oversample_size = int(len(lines) * oversampling)
                 # randomly sample the lines to make the number of lines oversampling times
-                sampled_lines = lines + random.choices(lines, 
+                sampled_lines = lines + random.choices(lines,
                                                        k=oversample_size - len(lines))
+                # shuffle the lines
+                random.shuffle(sampled_lines)
             else:
                 sampled_lines = lines
             for line in tqdm(sampled_lines):
@@ -140,19 +142,16 @@ if __name__ == "__main__":
                             "ebook_th_non_ocr": 1.29915457,
                             "ebook_vi_non_ocr": 1.571884399,
                             "indonesian_madlad": 1.284123889,
-                            # "indonesian_sft_pretrain": 0,
                             "malay_madlad": 2.309105402,
                             "subtitle_id": 1.943431342,
                             "subtitle_ms": 1.644883369,
                             "subtitle_th": 2.258092665,
                             "subtitle_vi": 1.538324544,
                             "thai_madlad": 1.207230403,
-                            # "thai_sft_pretrain": 0,
                             "translation_indonesian": 2.344973337,
                             "translation_thai": 1.810940887,
                             "translation_vietnamese": 1.135346713,
                             "vietnamese_madlad": 0.6959888856,
-                            # "vietnamese_sft_pretrain": 0,
                             "wikipedia_id_text": 1.955248684,
                             "wikipedia_ms_text": 2.067696885,
                             "wikipedia_th_text": 2.027472096,
