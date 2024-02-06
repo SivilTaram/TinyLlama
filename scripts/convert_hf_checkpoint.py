@@ -111,6 +111,7 @@ def copy_weights_falcon(
 def copy_weights_hf_llama(
     config: Config,
     qkv_weights: Dict[int, List[Optional[NotYetLoadedTensor]]],
+    qkv_bias: Dict[int, List[Optional[NotYetLoadedTensor]]],
     state_dict: Dict[str, torch.Tensor],
     hf_weights: Dict[str, Union[torch.Tensor, NotYetLoadedTensor]],
     saver: Optional[incremental_save] = None,
@@ -140,12 +141,20 @@ def copy_weights_hf_llama(
         if "model.layers" in name:
             from_name, number = layer_template(name, 2)
             qkv = qkv_weights.setdefault(number, [None, None, None])
-            if "q_proj" in name:
+            qkv_b = qkv_bias.setdefault(number, [None, None, None])
+            if "q_proj.weight" in name:
                 qkv[0] = param
-            elif "k_proj" in name:
+            elif "k_proj.weight" in name:
                 qkv[1] = param
-            elif "v_proj" in name:
+            elif "v_proj.weight" in name:
                 qkv[2] = param
+            elif "q_proj.bias" in name:
+                qkv_b[0] = param
+            elif "k_proj.bias" in name:
+                qkv_b[1] = param
+            elif "v_proj.bias" in name:
+                qkv_b[2] = param
+
             to_name = weight_map[from_name]
             if to_name is None:
                 continue
@@ -161,18 +170,37 @@ def copy_weights_hf_llama(
         if q is None or k is None or v is None:
             # split across different .bin files
             continue
-        q = load_param(q, f"layer {i} q", dtype)
-        k = load_param(k, f"layer {i} k", dtype)
-        v = load_param(v, f"layer {i} v", dtype)
+        q = load_param(q, f"layer {i} q weight", dtype)
+        k = load_param(k, f"layer {i} k weight", dtype)
+        v = load_param(v, f"layer {i} v weight", dtype)
         q_per_kv = config.n_head // config.n_query_groups
         qs = torch.split(q, config.head_size * q_per_kv)
         ks = torch.split(k, config.head_size)
         vs = torch.split(v, config.head_size)
         cycled = [t for group in zip(qs, ks, vs) for t in group]
-        qkv = torch.cat(cycled)
+        qkv = torch.cat(cycled)        
         state_dict[f"transformer.h.{i}.attn.attn.weight"] = qkv
         del qkv_weights[i]
 
+    for i, (q, k, v) in list(qkv_bias.items()):
+        if q is None or k is None or v is None:
+            # split across different .bin files
+            continue
+        q = load_param(q, f"layer {i} q bias", dtype)
+        k = load_param(k, f"layer {i} k bias", dtype)
+        v = load_param(v, f"layer {i} v bias", dtype)
+        q_per_kv = config.n_head // config.n_query_groups
+        qs = torch.split(q, config.head_size * q_per_kv)
+        ks = torch.split(k, config.head_size)
+        vs = torch.split(v, config.head_size)
+        cycled = [t for group in zip(qs, ks, vs) for t in group]
+        qkv = torch.cat(cycled)        
+        state_dict[f"transformer.h.{i}.attn.attn.bias"] = qkv
+        del qkv_bias[i]
+
+    # print the shape of state_dict
+    for k, v in state_dict.items():
+        print(k, v.shape)
 
 def layer_template(layer_name: str, idx: int) -> Tuple[str, int]:
     split = layer_name.split(".")
@@ -215,7 +243,8 @@ def convert_hf_checkpoint(
     elif config._mlp_class == "LLaMAMLP":
         # holder to reconstitute the split q, k, v
         qkv_weights = {}
-        copy_fn = partial(copy_weights_hf_llama, config, qkv_weights)
+        qkv_bias = {}
+        copy_fn = partial(copy_weights_hf_llama, config, qkv_weights, qkv_bias)
     else:
         copy_fn = copy_weights_gpt_neox
 

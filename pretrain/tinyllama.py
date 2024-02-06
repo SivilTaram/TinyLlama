@@ -26,7 +26,7 @@ import yaml
 import os
 
 # model_name = "tiny_LLaMA_120M"
-model_name = "tiny_LLaMA_120M"
+model_name = "qwen2_500M"
 
 # Experimental settings
 reset_embedding = False
@@ -34,17 +34,19 @@ dynamic_weight = False
 frozen_old_layers = False
 
 # Hyperparameters
-total_devices = 8
-num_of_devices = 8
+total_devices = 4
+num_of_devices = 4
 num_of_nodes = total_devices // num_of_devices if total_devices >= num_of_devices else 1
 
-global_batch_size = 384
+# 256 means 1M tokens
+global_batch_size = 256
 
-learning_rate = 1e-3
-micro_batch_size = 24
+learning_rate = 1e-4
+min_lr = 1e-5
+micro_batch_size = 2
 
-max_step = 100000
-warmup_steps = 1000
+max_step = 10000
+warmup_steps = 100
 log_step_interval = 10
 eval_iters = 100
 save_step_interval = 10000
@@ -56,8 +58,7 @@ weight_decay = 0.1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
-decay_lr = True
-min_lr = 0
+decay_lr = False
 
 batch_size = global_batch_size // total_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
@@ -71,18 +72,22 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Be careful about the weights, it should be something as the len(dataset) * actual reweighting
 train_data_config = [
-    ("train_cleaned_cc100_ind", 5),
-    ("train_redpajama_20b", 1.5)
+    # ("train_cleaned_cc100_ind", 5),
+    # ("train_redpajama_20b", 1.5)
+    ("train", 1.0)
 ]
 
 val_data_config = [
-    [
-        ("valid_cleaned_cc100_ind", 1.0),
-    ],
-    [
-        ("valid_redpajama_20b", 1.0),
-    ]
+    
 ]
+# val_data_config = [
+#     [
+#         ("valid_cleaned_cc100_ind", 1.0),
+#     ],
+#     [
+#         ("valid_redpajama_20b", 1.0),
+#     ]
+# ]
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 # get a random name

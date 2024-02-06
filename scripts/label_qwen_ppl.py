@@ -8,7 +8,7 @@ import subprocess
 
 def load_model():
     model = AutoModelForCausalLM.from_pretrained(
-        "mistralai/Mistral-7B-v0.1",
+        "/home/aiops/liuqian/Qwen2-beta-0_5B",
         # cache_dir="/dev/cache/liuqian/santacoder",
         torch_dtype=torch.bfloat16
     )
@@ -18,7 +18,7 @@ def load_model():
     tokenizer = AutoTokenizer.from_pretrained(
         "mistralai/Mistral-7B-v0.1",
         # cache_dir="/dev/cache/liuqian/santacoder",
-        model_max_length=1024
+        model_max_length=3072
     )
     return model, tokenizer
 
@@ -65,19 +65,23 @@ def label_model_loss(file_path):
     uniques = set(dataset.unique("hash"))
     dataset = dataset.filter(check_uniques, fn_kwargs={"uniques": uniques})
     print("Dataset size:", len(dataset))
+    dataset = dataset.sort("text", reverse=True)
+    # quickly estimate the length of the whole dataset
     # preprocess and tokenize the dataset
-    batch_size = 64 if is_80gb_gpu else 24
+    batch_size = 20 if is_80gb_gpu else 10
     loss_fn = torch.nn.CrossEntropyLoss(reduction='none')
     loss_value = []
     text_value = []
     with torch.no_grad():
         # batched dataset
-        for i in tqdm(range(0, len(dataset), batch_size)):
+        i = 0
+        while i < len(dataset):
+            print(f"Processing {i} - {i+batch_size} examples...")
             batch = dataset[i:i+batch_size]
             # tokenize
             inputs = tokenizer(batch["text"],
                             return_tensors="pt", 
-                            max_length=1024,
+                            max_length=3072,
                             truncation=True,
                             padding=True).to("cuda")
             # forward
@@ -110,9 +114,11 @@ def label_model_loss(file_path):
                                         ensure_ascii=False) + "\n")
                 loss_value = []
                 text_value = []
+            i += batch_size
+            # update batch size if necessary using the length of the inputs
+            total_capacity = 40_000 if is_80gb_gpu else 20_000
+            cur_max_length = inputs.input_ids.size(1)
+            batch_size = total_capacity // cur_max_length
 
 if __name__ == "__main__":
-    # label_model_loss("/home/aiops/liuqian/TinyLlama/hf_dataset/qwen2_data_mixture/train/cleaned_cc100_ms_dedup_chunk_1.jsonl")
-    # accept args and call the function
-    import sys
-    label_model_loss(sys.argv[1])
+    label_model_loss("/home/aiops/liuqian/TinyLlama/hf_dataset/qwen2_data_mixture/train/cleaned_cc100_ms_dedup_chunk_1.jsonl")

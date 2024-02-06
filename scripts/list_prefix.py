@@ -8,10 +8,10 @@ def get_prefix(folder_path):
     # shuffle
     random.shuffle(all_files)
     # filter prefix with doremi
-    all_files = [file_path for file_path in all_files if "train_redpajama_20b" in file_path]
+    all_files = [file_path for file_path in all_files if "train" in file_path]
     # print first 100
-    print(len(all_files))
-    # print(all_files[:100])
+    # print(len(all_files))
+    print(all_files[:100])
 
 def copy_file(src_folder_path, dst_folder_path, prefix):
     # read all files in the folder
@@ -45,7 +45,7 @@ def replace_symbol(folder_path):
             
                     
 if __name__ == "__main__":
-    get_prefix("../../lit_dataset")
+    get_prefix("../../lit_dataset_qwen")
     # copy_file("../../lit_dataset", "../../lit_dataset_mixture", "train_data_mixture_")
     # delete_prefix("../../lit_dataset_llama", "valid_vi_llama_mixed_sea")
     # replace_symbol("../../hf_dataset/madlad_dedup_clean_1/train")

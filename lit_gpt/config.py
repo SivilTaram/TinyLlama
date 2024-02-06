@@ -24,6 +24,7 @@ class Config:
     attn_pdrop: float = 0.0
     rotary_percentage: float = 0.25
     parallel_residual: bool = True
+    rope_base: int = 10000
     bias: bool = True
     # to use multi-head attention (MHA), set this to `n_head` (default)
     # to use multi-query attention (MQA), set this to 1
@@ -442,11 +443,30 @@ tiny_LLaMA = [
         n_query_groups=16,
         rotary_percentage=1.0,
         parallel_residual=False,
-        bias=False,
+        bias=True,
         _norm_class="RMSNorm",
-        norm_eps=1e-05,
+        norm_eps=1e-06,
+        rope_base=1000000,
         _mlp_class="LLaMAMLP",
         intermediate_size=2816,
+    ),
+    dict(
+        org="StatNLP-research",
+        name="qwen2_1_8B",
+        padded_vocab_size=151936,
+        block_size=4096,  # should be 32768 but sliding window attention is not implemented
+        n_layer=24,
+        n_embd=2048,
+        n_head=16,
+        n_query_groups=16,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=True,
+        _norm_class="RMSNorm",
+        norm_eps=1e-06,
+        rope_base=1000000,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5504,
     ),
 ]
 configs.extend(tiny_LLaMA)

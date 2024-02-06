@@ -73,7 +73,7 @@ def prepare(
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     destination_path: Path = Path("data/red_pajama_sample"),
     short_name: str = "ind",
-    chunk_size: int = 2049 * 1024,
+    chunk_size: int = 4097 * 2048,
     split: str="train",
     percentage: float = 1.0,
 ) -> None:

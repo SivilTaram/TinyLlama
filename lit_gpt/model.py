@@ -125,6 +125,7 @@ class GPT(nn.Module):
         return build_rope_cache(
             seq_len=self.config.block_size,
             n_elem=int(self.config.rotary_percentage * self.config.head_size),
+            base=self.config.rope_base,
             dtype=torch.bfloat16,
             device=idx.device,
             condense_ratio=self.config.condense_ratio,
@@ -199,8 +200,9 @@ class CausalSelfAttention(nn.Module):
         # key, query, value projections for all heads, but in a batch
         self.attn = nn.Linear(config.n_embd, shape, bias=config.bias)
         # output projection
-        self.proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
-
+        # self.proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
+        print("WARNING: we use Qwen's model arch so we set bias to False for proj layer.")
+        self.proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
         self.config = config
 
     def forward(

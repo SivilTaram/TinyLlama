@@ -22,4 +22,4 @@ python convert_lit_checkpoint.py  --out_dir /home/aiops/liuqian/TinyLlama/models
 
 python convert_hf_checkpoint.py --checkpoint_dir /home/aiops/liuqian/TinyLlama/models/tinyllama_120M_mistral_en --model_name tiny_LLaMA_mistral_120M_expand
 
-python convert_hf_checkpoint.py --checkpoint_dir /home/aiops/liuqian/TinyLlama/models/TinyLlama-3T-Model --model_name tiny_LLaMA_1b_expand
+python convert_hf_checkpoint.py --checkpoint_dir ../../../Qwen2-beta-1_8B --model_name qwen2_1_8B
